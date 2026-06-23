@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#090b12" />
+    <meta name="description" content="ReplyLoom drafts thoughtful, editable replies for X with the AI provider you already use." />
+    <meta property="og:title" content="ReplyLoom — Better replies, still your voice" />
+    <meta property="og:description" content="Three thoughtful drafts. Your model. Your final say." />
+    <meta property="og:image" content="assets/social-card.png" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="assets/icon-32.png" sizes="32x32" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>ReplyLoom — Better replies, still your voice</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="ReplyLoom home"><span class="brand-mark">RL</span><span>REPLYLOOM</span></a>
+      <nav aria-label="Primary navigation">
+        <a href="#how" data-i18n="navHow">How it works</a>
+        <a href="#privacy" data-i18n="navPrivacy">Privacy</a>
+        <a href="privacy.html" data-i18n="navPolicy">Policy</a>
+        <button class="language-toggle" type="button" data-language-toggle aria-label="切换到中文">中文</button>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero section-shell">
+        <div class="hero-copy">
+          <div class="eyebrow" data-i18n="eyebrow">AI reply assistant for X</div>
+          <h1><span data-i18n="headlineOne">Better replies.</span><br /><span class="muted" data-i18n="headlineTwo">Still your voice.</span></h1>
+          <p class="lead" data-i18n="lead">Turn a post worth answering into three thoughtful, editable drafts. Use your own model and publish only when it sounds like you.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#demo" data-i18n="watch">Watch the demo</a>
+            <span class="status"><span class="status-dot"></span><span data-i18n="coming">Chrome Web Store · Coming soon</span></span>
+          </div>
+        </div>
+        <div class="hero-visual" aria-label="ReplyLoom extension preview">
+          <div class="window-bar"><span></span><span></span><span></span><div>x.com / home</div></div>
+          <img src="assets/screenshot-compose.png" width="1280" height="800" alt="ReplyLoom side panel drafting a reply on X" data-i18n-alt="heroAlt" />
+        </div>
+      </section>
+
+      <section class="trust-strip section-shell" aria-label="Product principles">
+        <div><strong data-i18n="trustOneTitle">3 distinct drafts</strong><span data-i18n="trustOneText">Not three rewrites of the same thought</span></div>
+        <div><strong data-i18n="trustTwoTitle">8 providers</strong><span data-i18n="trustTwoText">Connect the model you already use</span></div>
+        <div><strong data-i18n="trustThreeTitle">0 auto-posts</strong><span data-i18n="trustThreeText">You review and publish every reply</span></div>
+      </section>
+
+      <section class="demo section-shell" id="demo">
+        <div class="section-heading"><div><div class="eyebrow" data-i18n="demoEyebrow">30-second tour</div><h2 data-i18n="demoTitle">See the whole loop.</h2></div><p data-i18n="demoText">Choose a post, shape the angle, review the drafts, and insert one into X. ReplyLoom stops before publish.</p></div>
+        <div class="video-frame">
+          <video controls playsinline preload="metadata" poster="assets/video-cover-1920x1080.png">
+            <source src="assets/replyloom-intro-1080p.mp4" type="video/mp4" />
+            <span data-i18n="videoFallback">Your browser does not support embedded video.</span>
+          </video>
+        </div>
+      </section>
+
+      <section class="steps section-shell" id="how">
+        <div class="section-heading"><div><div class="eyebrow" data-i18n="howEyebrow">How it works</div><h2 data-i18n="howTitle">A small loop. A better reply.</h2></div></div>
+        <div class="step-grid">
+          <article><span>01</span><h3 data-i18n="stepOneTitle">Pick the post</h3><p data-i18n="stepOneText">Click AI reply under the X post you want to answer. ReplyLoom reads only that selected context.</p></article>
+          <article><span>02</span><h3 data-i18n="stepTwoTitle">Choose the angle</h3><p data-i18n="stepTwoText">Set tone, length, language, and optional voice guidance. Generate three genuinely different drafts.</p></article>
+          <article><span>03</span><h3 data-i18n="stepThreeTitle">Make it yours</h3><p data-i18n="stepThreeText">Edit a draft, insert it into X, and publish manually only after it sounds right.</p></article>
+        </div>
+      </section>
+
+      <section class="providers section-shell">
+        <div class="provider-copy"><div class="eyebrow" data-i18n="providerEyebrow">Bring your own model</div><h2 data-i18n="providerTitle">One assistant.<br />Your choice of intelligence.</h2><p data-i18n="providerText">Connect directly to a supported OpenAI-compatible provider. Your key is stored in Chrome only if you choose to save it.</p></div>
+        <div class="provider-list" aria-label="Supported AI providers"><span>OpenAI</span><span>DeepSeek</span><span>MiniMax</span><span>GLM</span><span>Doubao</span><span>Qwen</span><span>Moonshot</span><span>SiliconFlow</span></div>
+      </section>
+
+      <section class="privacy-block section-shell" id="privacy">
+        <div class="privacy-card"><div class="privacy-icon" aria-hidden="true">✓</div><div><div class="eyebrow" data-i18n="privacyEyebrow">Human in the loop</div><h2 data-i18n="privacyTitle">Drafts, never autopilot.</h2><p data-i18n="privacyText">ReplyLoom never batch-replies or clicks the final Reply button. It sends selected context only to the model provider you choose and runs no developer-owned model proxy.</p><a href="privacy.html" data-i18n="readPolicy">Read the privacy policy →</a></div></div>
+      </section>
+    </main>
+
+    <footer class="site-footer section-shell"><div><a class="brand footer-brand" href="./"><span class="brand-mark">RL</span><span>REPLYLOOM</span></a><p data-i18n="footerLine">Thoughtful drafts. Human judgment.</p></div><div class="footer-links"><a href="mailto:ruochen.mail@gmail.com">ruochen.mail@gmail.com</a><a href="privacy.html" data-i18n="navPolicy">Privacy Policy</a></div><p class="disclaimer" data-i18n="disclaimer">ReplyLoom is independent and is not affiliated with X Corp. or any supported model provider.</p></footer>
+    <script src="app.js" defer></script>
+  </body>
+</html>

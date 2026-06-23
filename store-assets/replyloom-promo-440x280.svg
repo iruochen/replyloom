@@ -1,0 +1,33 @@
+<svg width="440" height="280" viewBox="0 0 440 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="12" x2="424" y2="270" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#090B12"/>
+      <stop offset="1" stop-color="#171B32"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="30" y1="30" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6"/>
+      <stop offset="0.55" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <rect width="440" height="280" rx="0" fill="url(#bg)"/>
+  <circle cx="370" cy="40" r="86" fill="#6366F1" fill-opacity="0.18" filter="url(#glow)"/>
+  <circle cx="72" cy="245" r="70" fill="#2563EB" fill-opacity="0.14" filter="url(#glow)"/>
+  <rect x="32" y="30" width="82" height="82" rx="22" fill="url(#brand)"/>
+  <path d="M55 90V51H71C81 51 87 56 87 64C87 72 81 77 71 77H55M71 77L89 91" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68 48V91H92" stroke="#DDD6FE" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="136" y="66" fill="#A5B4FC" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800" letter-spacing="2.4">REPLYLOOM</text>
+  <text x="136" y="94" fill="white" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="750">Better replies.</text>
+  <text x="136" y="121" fill="white" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="750">Still your voice.</text>
+  <rect x="32" y="156" width="376" height="82" rx="18" fill="#111522" stroke="#303854"/>
+  <circle cx="61" cy="183" r="10" fill="#6366F1"/>
+  <rect x="81" y="174" width="128" height="8" rx="4" fill="#F8FAFC" fill-opacity="0.88"/>
+  <rect x="81" y="190" width="238" height="7" rx="3.5" fill="#94A3B8" fill-opacity="0.5"/>
+  <rect x="81" y="205" width="190" height="7" rx="3.5" fill="#94A3B8" fill-opacity="0.32"/>
+  <rect x="331" y="174" width="53" height="28" rx="14" fill="#6366F1"/>
+  <text x="346" y="192" fill="white" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700">Draft</text>
+  <text x="32" y="262" fill="#94A3B8" font-family="Inter, Arial, sans-serif" font-size="11">AI reply drafts for X · You review before posting</text>
+</svg>

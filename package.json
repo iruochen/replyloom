@@ -1,0 +1,36 @@
+{
+  "name": "reply-loom",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc --noEmit && vite build",
+    "package": "npm run build && node scripts/package-extension.mjs",
+    "video:studio": "remotion studio video/src/index.ts --public-dir=video/public",
+    "video:still": "remotion still video/src/index.ts ReplyLoomPromo store-assets/video-cover-1920x1080.png --frame=210 --public-dir=video/public",
+    "video:render": "remotion render video/src/index.ts ReplyLoomPromo store-assets/replyloom-intro-1080p.mp4 --codec=h264 --crf=18 --public-dir=video/public",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run test && npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.482",
+    "@remotion/transitions": "^4.0.482",
+    "@types/chrome": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "jsdom": "latest",
+    "remotion": "^4.0.482",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  }
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReplyLoom Store Preview</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #e7e9ea; background: #000; }
+      .canvas { width: 1280px; height: 800px; display: grid; grid-template-columns: 820px 460px; background: radial-gradient(circle at 16% 2%, rgba(99,102,241,.17), transparent 27%), #000; }
+      .timeline { padding: 54px 64px; border-right: 1px solid #2f3336; }
+      .brand { color: #818cf8; font-size: 13px; font-weight: 850; letter-spacing: .17em; }
+      h1 { margin: 13px 0 36px; max-width: 640px; color: #f7f9f9; font-size: 43px; line-height: 1.08; letter-spacing: -.04em; }
+      .tweet { display: grid; grid-template-columns: 52px 1fr; gap: 15px; padding: 24px; border: 1px solid #2f3336; border-radius: 24px; background: rgba(8,10,14,.92); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+      .avatar { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg,#8b5cf6,#2563eb); font-weight: 850; }
+      .name { font-weight: 750; }.handle { margin-left: 6px; color: #71767b; font-weight: 450; }
+      .tweet p { margin: 12px 0 22px; color: #e7e9ea; font-size: 20px; line-height: 1.55; }
+      .actions { display: flex; gap: 44px; color: #71767b; font-size: 13px; }
+      .ai { color: #818cf8; font-weight: 750; }
+      .note { margin-top: 28px; color: #71767b; font-size: 14px; line-height: 1.6; }
+      .panelArea { display: flex; align-items: center; justify-content: center; padding: 32px; background: linear-gradient(180deg,#07090e,#0b0d14); }
+      .panel { width: 396px; height: 736px; overflow: hidden; border: 1px solid #31394b; border-radius: 24px; background: #0b0d12; box-shadow: 0 30px 80px rgba(0,0,0,.48), 0 0 0 1px rgba(99,102,241,.08); }
+      iframe { width: 100%; height: 100%; border: 0; background: #0b0d12; }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <section class="timeline">
+        <div class="brand">REPLYLOOM FOR X</div>
+        <h1>Turn a post worth answering into a better conversation.</h1>
+        <article class="tweet">
+          <div class="avatar">RL</div>
+          <div><div><span class="name">Lena Builds</span><span class="handle">@lena_builds · 2h</span></div><p>The best AI products may not feel like AI products at all. They simply remove one annoying step from a workflow.</p><div class="actions"><span>♡ 128</span><span>↻ 34</span><span>◉ 12K</span><span class="ai">✦ AI reply</span></div></div>
+        </article>
+        <p class="note">ReplyLoom reads only the post you select. Every generated reply stays editable, and you always decide what gets published.</p>
+      </section>
+      <aside class="panelArea"><div class="panel"><iframe title="ReplyLoom" src="/sidepanel.html?store-preview=1"></iframe></div></aside>
+    </main>
+  </body>
+</html>
