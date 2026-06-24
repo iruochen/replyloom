@@ -1,19 +1,19 @@
 import type { RuntimeRequest, RuntimeResponse } from "../shared/types";
 import { extractPostContext, findBestVisibleTweet, findTweetByUrl, findTweetFromTarget, insertDraftIntoComposer } from "./x-dom";
 
+declare global {
+  interface Window { __replyLoomLoaded?: string }
+}
+
 const BUTTON_CLASS = "reply-loom-trigger";
 const INSTANCE_ID = crypto.randomUUID();
 const LAUNCHER_POSITION_KEY = "floatingLauncherPosition";
 const PANEL_POSITION_KEY = "floatingPanelPosition";
 let lastSelectedTweet: HTMLElement | null = null;
-let panelMode: "side" | "floating" = "side";
+let lastAutoReadKey = "";
+let panelMode: "side" | "floating" = "floating";
 let floatingHost: HTMLElement | null = null;
 let floatingFrame: HTMLIFrameElement | null = null;
-
-document.addEventListener("click", (event) => {
-  const tweet = findTweetFromTarget(event.target);
-  if (tweet) lastSelectedTweet = tweet;
-}, true);
 
 function installTriggers(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('article[data-testid="tweet"]').forEach((article) => {
@@ -42,27 +42,36 @@ function installTriggers(root: ParentNode = document) {
   });
 }
 
-document.getElementById("reply-loom-content-style")?.remove();
-const style = document.createElement("style");
-style.id = "reply-loom-content-style";
-style.textContent = `
-  .${BUTTON_CLASS} {
-    appearance: none; border: 0; background: transparent; color: rgb(99, 102, 241);
-    cursor: pointer; min-height: 32px; padding: 0 10px; border-radius: 999px;
-    font: 600 12px/1 system-ui, sans-serif;
-  }
-  .${BUTTON_CLASS}:hover { background: rgba(99, 102, 241, .12); }
-  .${BUTTON_CLASS}:focus-visible { outline: 2px solid rgb(99, 102, 241); outline-offset: 2px; }
-`;
-document.documentElement.append(style);
+function installContentStyle() {
+  document.getElementById("reply-loom-content-style")?.remove();
+  const style = document.createElement("style");
+  style.id = "reply-loom-content-style";
+  style.textContent = `
+    .${BUTTON_CLASS} {
+      appearance: none; border: 0; background: transparent; color: rgb(99, 102, 241);
+      cursor: pointer; min-height: 32px; padding: 0 10px; border-radius: 999px;
+      font: 600 12px/1 system-ui, sans-serif;
+    }
+    .${BUTTON_CLASS}:hover { background: rgba(99, 102, 241, .12); }
+    .${BUTTON_CLASS}:focus-visible { outline: 2px solid rgb(99, 102, 241); outline-offset: 2px; }
+  `;
+  document.documentElement.append(style);
+}
 
-let scanTimer = 0;
-const observer = new MutationObserver(() => {
-  window.clearTimeout(scanTimer);
-  scanTimer = window.setTimeout(() => installTriggers(), 120);
-});
-observer.observe(document.documentElement, { childList: true, subtree: true });
-installTriggers();
+// When the page navigates to a single tweet (a /status/<id> URL), read the
+// focused tweet automatically and stash it as the selected post — without
+// forcing the side panel open. The panel/iframe picks it up live via storage.
+function maybeAutoReadPost() {
+  if (!/\/status\/\d+/.test(location.pathname)) { lastAutoReadKey = ""; return; }
+  if (location.pathname === lastAutoReadKey) return;
+  const article = findBestVisibleTweet();
+  if (!article) return;
+  const post = extractPostContext(article);
+  if (!post) return;
+  lastAutoReadKey = location.pathname;
+  lastSelectedTweet = article;
+  void chrome.runtime.sendMessage({ type: "POST_SELECTED", post, panelMode, auto: true } satisfies RuntimeRequest);
+}
 
 function installFloatingPanel() {
   if (floatingHost || panelMode !== "floating") return;
@@ -242,19 +251,40 @@ function openFloatingPanel(refresh = false) {
   if (panel) panel.hidden = false;
 }
 
-void chrome.storage.local.get("appPreferences").then((result) => {
-  const preferences = result.appPreferences as { panelMode?: string } | undefined;
-  panelMode = preferences?.panelMode === "floating" ? "floating" : "side";
-  if (panelMode === "floating") installFloatingPanel();
-});
+function init() {
+  installContentStyle();
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !changes.appPreferences) return;
-  const preferences = changes.appPreferences.newValue as { panelMode?: string } | undefined;
-  panelMode = preferences?.panelMode === "floating" ? "floating" : "side";
-  if (panelMode === "floating") installFloatingPanel(); else removeFloatingPanel();
-});
+  document.addEventListener("click", (event) => {
+    const tweet = findTweetFromTarget(event.target);
+    if (tweet) lastSelectedTweet = tweet;
+  }, true);
 
+  let scanTimer = 0;
+  const observer = new MutationObserver(() => {
+    window.clearTimeout(scanTimer);
+    scanTimer = window.setTimeout(() => { installTriggers(); maybeAutoReadPost(); }, 120);
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  installTriggers();
+
+  void chrome.storage.local.get("appPreferences").then((result) => {
+    const preferences = result.appPreferences as { panelMode?: string } | undefined;
+    panelMode = preferences?.panelMode === "side" ? "side" : "floating";
+    if (panelMode === "floating") installFloatingPanel();
+    maybeAutoReadPost();
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.appPreferences) return;
+    const preferences = changes.appPreferences.newValue as { panelMode?: string } | undefined;
+    panelMode = preferences?.panelMode === "side" ? "side" : "floating";
+    if (panelMode === "floating") installFloatingPanel(); else removeFloatingPanel();
+  });
+
+  registerMessageHandler();
+}
+
+function registerMessageHandler() {
 chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, sendResponse: (response: RuntimeResponse) => void) => {
   if (request.type === "PING") {
     sendResponse({ ok: true, data: true });
@@ -278,3 +308,13 @@ chrome.runtime.onMessage.addListener((request: RuntimeRequest, _sender, sendResp
     return true;
   }
 });
+}
+
+// Guard against double initialization: the background may re-inject content.js
+// (via chrome.scripting) on top of the manifest-injected instance. Without this
+// guard every injection stacks another onMessage listener, which made a single
+// INSERT_DRAFT run the insertion twice.
+if (!window.__replyLoomLoaded) {
+  window.__replyLoomLoaded = INSTANCE_ID;
+  init();
+}

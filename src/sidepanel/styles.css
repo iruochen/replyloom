@@ -1,7 +1,11 @@
 :root { color: #111827; background: #f8fafc; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-synthesis: none; }
 * { box-sizing: border-box; }
 html { scrollbar-gutter: stable; }
-body { margin: 0; min-width: 320px; }
+/* Keep scrolling contained to the panel — in floating mode the panel lives in
+   an iframe over X, and without this, reaching the top/bottom would chain the
+   scroll through to the X timeline behind it. */
+html, body { overscroll-behavior: contain; }
+body { margin: 0; min-width: 320px; -webkit-overflow-scrolling: touch; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid rgba(99, 102, 241, .35); outline-offset: 2px; }
@@ -54,7 +58,10 @@ h1 { margin: 7px 0 0; max-width: 310px; font-size: 23px; line-height: 1.22; lett
 .candidateCard { box-shadow: none; }
 .candidateMeta { margin-bottom: 8px; color: #6b7280; font-size: 11px; font-variant-numeric: tabular-nums; }
 .candidateCard textarea { width: 100%; padding: 0; border: 0; background: transparent; color: #111827; resize: vertical; font-size: 14px; line-height: 1.55; }
-.insertButton { padding: 0 13px; border: 0; background: #111827; color: #fff; }
+.insertButton { display: inline-flex; align-items: center; gap: 6px; padding: 0 16px; border: 0; color: #fff; background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 6px 16px rgba(79, 70, 229, .28); }
+.insertButton:hover:not(:disabled) { background: linear-gradient(135deg, #4f46e5, #4338ca); box-shadow: 0 8px 20px rgba(79, 70, 229, .34); }
+.insertButton:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 4px 12px rgba(79, 70, 229, .26); }
+.insertButton svg { flex: 0 0 auto; }
 .generationProgress { display: grid; gap: 14px; padding: 16px; overflow: hidden; border: 1px solid #c7d2fe; border-radius: 14px; background: linear-gradient(145deg, #eef2ff, #ecfeff); box-shadow: 0 12px 32px rgba(79, 70, 229, .1); }
 .generationHeading { display: flex; align-items: center; gap: 12px; }
 .generationHeading > div { min-width: 0; display: grid; gap: 4px; }
@@ -102,7 +109,7 @@ h1 { margin: 7px 0 0; max-width: 310px; font-size: 23px; line-height: 1.22; lett
   .generationHeading strong { color: #e0e7ff; }
   .generationHeading small { color: #a5b4fc; }
   .preferenceCard small { color: #9ca3af; }
-  .insertButton { background: #f3f4f6; color: #111827; }
+  .insertButton { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; box-shadow: 0 6px 16px rgba(0, 0, 0, .4); }
   .notice.error { background: #32191c; border-color: #7f1d1d; color: #fecaca; }
   .notice.success { background: #10251a; border-color: #166534; color: #bbf7d0; }
   .notice.info { background: #1d1b3b; border-color: #4338ca; color: #c7d2fe; }

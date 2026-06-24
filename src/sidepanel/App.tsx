@@ -34,7 +34,7 @@ const copy = {
     remember: "在这台设备上保存 API Key", privacy: "密钥只保存在扩展存储中，不会交给 X 页面；浏览器本地存储不等同于服务端密钥保险箱。",
     testing: "测试中…", test: "测试连接", saving: "保存中…", save: "保存", saved: "模型配置已保存。", permission: "需要允许访问该模型接口，扩展才能发送请求。",
     modelPermission: "需要允许访问该模型接口，才能读取可用模型。", modelsLoaded: (count: number) => `已读取 ${count} 个可用模型，可从列表选择或继续手动输入。`,
-    display: "界面", language: "界面语言", panelMode: "面板模式", side: "固定侧边栏", floating: "悬浮面板", floatingHint: "悬浮模式会在 X 页面右下角显示 ReplyLoom 按钮。", floatingEnabled: "悬浮模式已启用。关闭右侧栏后，点击 X 页面右下角的 RL 按钮。", sideEnabled: "固定侧边栏模式已启用。",
+    display: "界面", language: "界面语言", panelMode: "面板模式", side: "固定侧边栏", floating: "悬浮面板", floatingHint: "默认已开启：访问 X 时右下角会出现 ReplyLoom 悬浮按钮。想关闭就切换到「固定侧边栏」。", floatingEnabled: "悬浮模式已启用。关闭右侧栏后，点击 X 页面右下角的 RL 按钮。", sideEnabled: "固定侧边栏模式已启用。",
     tagline: "把一条好推文，变成一段好对话。", openSettings: "打开设置", currentPost: "当前推文", xUser: "X 用户", reread: "重新读取",
     empty: "在 X 上点击推文下方的 AI reply，或读取当前页面中的推文。", reading: "读取中…", readPost: "读取当前推文", manual: "读取失败？手动粘贴", paste: "粘贴推文正文…",
     replyStyle: "评论风格", styles: ["精简", "有洞察", "幽默", "支持", "提问"], length: "长度", short: "短", medium: "中等", replyLanguage: "回复语言", follow: "跟随原文", chinese: "中文", english: "英文",
@@ -49,7 +49,7 @@ const copy = {
     remember: "Save API Key on this device", privacy: "The key stays in extension storage and is never exposed to the X page. Browser storage is not a server-side secret vault.",
     testing: "Testing…", test: "Test connection", saving: "Saving…", save: "Save", saved: "Model configuration saved.", permission: "Allow access to this model endpoint before ReplyLoom can send requests.",
     modelPermission: "Allow access to this endpoint before loading models.", modelsLoaded: (count: number) => `Loaded ${count} models. Choose one or keep typing manually.`,
-    display: "Appearance", language: "Interface language", panelMode: "Panel mode", side: "Docked side panel", floating: "Floating panel", floatingHint: "Floating mode adds a ReplyLoom launcher to the lower-right corner of X.", floatingEnabled: "Floating mode is on. Close the side panel, then click RL in the lower-right corner of X.", sideEnabled: "Docked side panel mode is on.",
+    display: "Appearance", language: "Interface language", panelMode: "Panel mode", side: "Docked side panel", floating: "Floating panel", floatingHint: "On by default: a ReplyLoom launcher appears at the lower-right of X. Switch to the docked side panel to turn it off.", floatingEnabled: "Floating mode is on. Close the side panel, then click RL in the lower-right corner of X.", sideEnabled: "Docked side panel mode is on.",
     tagline: "Turn a good post into a better conversation.", openSettings: "Open settings", currentPost: "Current post", xUser: "X user", reread: "Read again",
     empty: "Click AI reply under a post on X, or read the current post.", reading: "Reading…", readPost: "Read current post", manual: "Can't read it? Paste manually", paste: "Paste the post text…",
     replyStyle: "Reply style", styles: ["Concise", "Insightful", "Humorous", "Supportive", "Question"], length: "Length", short: "Short", medium: "Medium", replyLanguage: "Reply language", follow: "Match source", chinese: "Chinese", english: "English",
@@ -106,6 +106,22 @@ export function App() {
     const timer = window.setTimeout(() => setNotice(null), 3200);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  // Reflect posts read automatically by the content script (e.g. when the user
+  // opens a tweet) live, without needing a manual re-read.
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.storage?.onChanged) return;
+    const listener = (changes: Record<string, { newValue?: unknown }>, area: string) => {
+      if (area !== "session" || !changes.selectedPost) return;
+      const next = changes.selectedPost.newValue as PostContext | undefined;
+      if (!next) return;
+      setPost(next);
+      setManualText("");
+      setCandidates([]);
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, []);
 
   useEffect(() => {
     const update = (active: boolean) => setScrollHints({
@@ -243,7 +259,7 @@ export function App() {
       <section aria-labelledby="style-title"><p className="sectionLabel" id="style-title">{t.replyStyle}</p><div className="chips">{styleValues.map((value, index) => <button className={settings.style === value ? "chip active" : "chip"} type="button" key={value} onClick={() => setSettings({ ...settings, style: value })}>{t.styles[index]}</button>)}</div><div className="segmentedRow"><label className="compactField"><span>{t.length}</span><select value={settings.length} onChange={(event) => setSettings({ ...settings, length: event.target.value as GenerationSettings["length"] })}><option value="short">{t.short}</option><option value="medium">{t.medium}</option></select></label><label className="compactField"><span>{t.replyLanguage}</span><select value={settings.language} onChange={(event) => setSettings({ ...settings, language: event.target.value as GenerationSettings["language"] })}><option value="auto">{t.follow}</option><option value="zh">{t.chinese}</option><option value="en">{t.english}</option></select></label></div><button className="advancedToggle" type="button" onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced}>{t.advanced} {showAdvanced ? "−" : "+"}</button>{showAdvanced && <div className="advancedPanel"><label className="field"><span>{t.voice}</span><textarea rows={2} value={settings.voiceProfile} onChange={(event) => setSettings({ ...settings, voiceProfile: event.target.value })} placeholder={t.voicePlaceholder} /></label><label className="field"><span>{t.extra}</span><textarea rows={2} value={settings.customInstruction} onChange={(event) => setSettings({ ...settings, customInstruction: event.target.value })} placeholder={t.extraPlaceholder} /></label></div>}</section>
       <button className="primaryButton" type="button" disabled={!source || busy !== null} onClick={() => void handleGenerate()}>{busy === "generating" ? t.generating : candidates.length ? t.regenerate : t.generate}</button>
       {busy === "generating" && <section className="generationProgress" role="status" aria-live="polite"><div className="generationHeading"><span className="generationOrb" aria-hidden="true"><i /><i /><i /></span><div><strong>{generationPhase}</strong><small>{t.elapsed(generationSeconds)} · {provider.model}</small></div></div><div className="generationTrack" aria-hidden="true"><span /></div><div className="draftShimmers" aria-hidden="true"><i /><i /><i /></div></section>}
-      {candidates.length > 0 && <section className="candidateList" aria-labelledby="candidate-title"><p className="sectionLabel" id="candidate-title">{t.candidate}</p>{candidates.map((candidate, index) => <article className="candidateCard" key={candidate.id}><div className="candidateMeta"><span>0{index + 1}</span><span>{candidate.text.length} {t.chars}</span></div><textarea value={candidate.text} onChange={(event) => updateCandidate(candidate.id, event.target.value)} rows={4} aria-label={`${t.candidate} ${index + 1}`} /><div className="candidateActions"><button className="textButton" type="button" onClick={() => void handleCopy(candidate.text)}>{t.copy}</button><button className="insertButton" type="button" disabled={!candidate.text.trim() || busy !== null} onClick={() => void handleInsert(candidate)}>{busy === "inserting" ? t.inserting : t.insert}</button></div></article>)}</section>}
+      {candidates.length > 0 && <section className="candidateList" aria-labelledby="candidate-title"><p className="sectionLabel" id="candidate-title">{t.candidate}</p>{candidates.map((candidate, index) => <article className="candidateCard" key={candidate.id}><div className="candidateMeta"><span>0{index + 1}</span><span>{candidate.text.length} {t.chars}</span></div><textarea value={candidate.text} onChange={(event) => updateCandidate(candidate.id, event.target.value)} rows={4} aria-label={`${t.candidate} ${index + 1}`} /><div className="candidateActions"><button className="textButton" type="button" onClick={() => void handleCopy(candidate.text)}>{t.copy}</button><button className="insertButton" type="button" disabled={!candidate.text.trim() || busy !== null} onClick={() => void handleInsert(candidate)}><InsertIcon />{busy === "inserting" ? t.inserting : t.insert}</button></div></article>)}</section>}
       <p className="footnote">{t.footnote}</p>
     </main>
   );
@@ -251,4 +267,5 @@ export function App() {
 
 function Notice({ tone, text }: { tone: "error" | "success" | "info"; text: string }) { return <div className={`notice ${tone}${tone === "success" ? " toast" : ""}`} role={tone === "error" ? "alert" : "status"}>{tone === "success" && <span aria-hidden="true">✓</span>}{text}</div>; }
 function GearIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63a1.7 1.7 0 0 0 1-1.55V3h4v.08A1.7 1.7 0 0 0 15 4.63a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.37 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>; }
+function InsertIcon() { return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>; }
 function asMessage(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }

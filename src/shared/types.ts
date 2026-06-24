@@ -71,7 +71,7 @@ export type RuntimeRequest =
   | { type: "PING" }
   | { type: "GET_STATE" }
   | { type: "EXTRACT_ACTIVE_POST" }
-  | { type: "POST_SELECTED"; post: PostContext; panelMode?: PanelMode }
+  | { type: "POST_SELECTED"; post: PostContext; panelMode?: PanelMode; auto?: boolean }
   | { type: "GET_PROVIDER_CONFIG" }
   | { type: "GET_PROVIDER_PROFILES" }
   | { type: "SAVE_PROVIDER_CONFIG"; config: ProviderConfig }
@@ -101,7 +101,7 @@ export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = { ...PROVIDER_DEFAULTS.op
 
 export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   uiLanguage: "en",
-  panelMode: "side",
+  panelMode: "floating",
 };
 
 export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {

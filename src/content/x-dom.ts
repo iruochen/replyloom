@@ -61,19 +61,34 @@ export async function insertDraftIntoComposer(article: HTMLElement | null, text:
 
   editor.focus();
   const selection = window.getSelection();
-  selection?.selectAllChildren(editor);
-  const canExec = typeof document.execCommand === "function";
-  if (editor.textContent && canExec) document.execCommand("delete", false);
+  // Select everything already in the editor, then let a single insertText
+  // replace the selection in one atomic step. The previous delete-then-insert
+  // pair desynced X's rich-text (DraftJS) model: the text landed as untracked
+  // DOM, so it appeared twice and could not be deleted. Replacing the active
+  // selection keeps the editor's own model authoritative.
+  const all = document.createRange();
+  all.selectNodeContents(editor);
+  selection?.removeAllRanges();
+  selection?.addRange(all);
 
+  const canExec = typeof document.execCommand === "function";
   const inserted = canExec && document.execCommand("insertText", false, text);
-  if (!inserted && selection?.rangeCount) {
-    const beforeInput = new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertText", data: text });
-    if (!editor.dispatchEvent(beforeInput)) return false;
-    const range = selection.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(text));
+
+  if (!inserted) {
+    // Fallback for engines without execCommand insertText: prefer letting the
+    // editor's framework own the resulting nodes via beforeinput; only touch
+    // the DOM directly if nothing handled the event.
+    const beforeInput = new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertReplacementText", data: text });
+    const handledByEditor = !editor.dispatchEvent(beforeInput);
+    if (!handledByEditor) {
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : all;
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+    }
     editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
   }
+
+  // Collapse the caret to the end so the user can keep typing.
   const end = document.createRange();
   end.selectNodeContents(editor);
   end.collapse(false);
