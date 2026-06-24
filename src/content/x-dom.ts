@@ -59,43 +59,76 @@ export async function insertDraftIntoComposer(article: HTMLElement | null, text:
   const editor = findBestReplyEditor(article);
   if (!editor) return false;
 
+  // Replace whatever is in the editor with the draft, deciding success by
+  // inspecting the editor's text afterwards rather than trusting a command's
+  // return value. X's DraftJS editor applies the edit to its own model and then
+  // cancels execCommand's input event, so execCommand reports `false` even
+  // though the text landed. The old code treated that `false` as failure and
+  // ran a fallback that injected a second, untracked text node: the draft then
+  // appeared twice, and the trailing copy (absent from DraftJS's model) could
+  // not be deleted, even though posting used the single modelled copy. We never
+  // hand-insert DOM nodes now — if no strategy lands, we simply report failure.
+  if (insertViaCommand(editor, text)) return collapseToEnd(editor);
+  if (insertViaPaste(editor, text)) return collapseToEnd(editor);
+  if (insertViaBeforeInput(editor, text)) return collapseToEnd(editor);
+  return false;
+}
+
+// True once the editor's text matches the draft. Whitespace is collapsed away
+// because DraftJS renders each line as its own block, so multi-line drafts come
+// back without the original newlines between blocks.
+function editorHasText(editor: HTMLElement, text: string): boolean {
+  const compact = (value: string) => value.replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, "");
+  const target = compact(text);
+  return target.length > 0 && compact(editor.textContent ?? "") === target;
+}
+
+function selectAllContent(editor: HTMLElement) {
   editor.focus();
   const selection = window.getSelection();
-  // Select everything already in the editor, then let a single insertText
-  // replace the selection in one atomic step. The previous delete-then-insert
-  // pair desynced X's rich-text (DraftJS) model: the text landed as untracked
-  // DOM, so it appeared twice and could not be deleted. Replacing the active
-  // selection keeps the editor's own model authoritative.
-  const all = document.createRange();
-  all.selectNodeContents(editor);
+  const range = document.createRange();
+  range.selectNodeContents(editor);
   selection?.removeAllRanges();
-  selection?.addRange(all);
+  selection?.addRange(range);
+}
 
-  const canExec = typeof document.execCommand === "function";
-  const inserted = canExec && document.execCommand("insertText", false, text);
+function insertViaCommand(editor: HTMLElement, text: string): boolean {
+  if (typeof document.execCommand !== "function") return false;
+  selectAllContent(editor);
+  document.execCommand("insertText", false, text);
+  return editorHasText(editor, text);
+}
 
-  if (!inserted) {
-    // Fallback for engines without execCommand insertText: prefer letting the
-    // editor's framework own the resulting nodes via beforeinput; only touch
-    // the DOM directly if nothing handled the event.
-    const beforeInput = new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertReplacementText", data: text });
-    const handledByEditor = !editor.dispatchEvent(beforeInput);
-    if (!handledByEditor) {
-      const range = selection?.rangeCount ? selection.getRangeAt(0) : all;
-      range.deleteContents();
-      range.insertNode(document.createTextNode(text));
-    }
-    editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
+function insertViaPaste(editor: HTMLElement, text: string): boolean {
+  try {
+    if (typeof DataTransfer !== "function" || typeof ClipboardEvent !== "function") return false;
+    selectAllContent(editor);
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    editor.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+    return editorHasText(editor, text);
+  } catch {
+    return false;
   }
+}
 
-  // Collapse the caret to the end so the user can keep typing.
+function insertViaBeforeInput(editor: HTMLElement, text: string): boolean {
+  selectAllContent(editor);
+  editor.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertText", data: text }));
+  editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
+  return editorHasText(editor, text);
+}
+
+// Collapse the caret to the end so the user can keep typing.
+function collapseToEnd(editor: HTMLElement): boolean {
+  const selection = window.getSelection();
   const end = document.createRange();
   end.selectNodeContents(editor);
   end.collapse(false);
   selection?.removeAllRanges();
   selection?.addRange(end);
   editor.focus();
-  return editor.textContent?.trim() === text.trim() || Boolean(inserted);
+  return true;
 }
 
 function findReplyEditors() {

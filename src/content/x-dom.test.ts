@@ -60,6 +60,22 @@ describe("X DOM helpers", () => {
     expect(document.querySelector('[data-testid="tweetButton"]')).toBeNull();
   });
 
+  it("inserts exactly once when the editor cancels the command (DraftJS-style)", async () => {
+    const article = renderTweet();
+    window.history.replaceState({}, "", "/alice/status/123456");
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    editor.setAttribute("role", "textbox");
+    document.body.append(editor);
+    // Mimic X's rich-text editor: it applies the edit to its own model (here, the
+    // DOM text) and then reports `false` by cancelling the command. The insert
+    // must still succeed and leave a single copy — no duplicating fallback.
+    Object.defineProperty(document, "execCommand", { configurable: true, value: vi.fn((_command, _ui, text) => { editor.textContent = String(text); return false; }) });
+
+    await expect(insertDraftIntoComposer(article, "One copy only")).resolves.toBe(true);
+    expect(editor.textContent).toBe("One copy only");
+  });
+
   it("uses an already-open dialog but never opens one itself", async () => {
     const article = renderTweet();
     const pageEditor = document.createElement("div");
