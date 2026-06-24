@@ -30,6 +30,7 @@ describe("buildReplyPrompt", () => {
     expect(prompt.user).toContain("Ask one answerable");
     expect(prompt.user).toContain("克制、具体");
     expect(prompt.user).toContain("不要使用 emoji");
+    expect(prompt.user).toContain("Sound like a real person replying on X");
+    expect(prompt.user).toContain("steadier, more opinionated, and more spreadable");
   });
 });
-

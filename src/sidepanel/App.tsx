@@ -38,7 +38,7 @@ const copy = {
     tagline: "把一条好推文，变成一段好对话。", openSettings: "打开设置", currentPost: "当前推文", xUser: "X 用户", reread: "重新读取",
     empty: "在 X 上点击推文下方的 AI reply，或读取当前页面中的推文。", reading: "读取中…", readPost: "读取当前推文", manual: "读取失败？手动粘贴", paste: "粘贴推文正文…",
     replyStyle: "评论风格", styles: ["精简", "有洞察", "幽默", "支持", "提问"], length: "长度", short: "短", medium: "中等", replyLanguage: "回复语言", follow: "跟随原文", chinese: "中文", english: "英文",
-    advanced: "个性化设置", voice: "我的表达风格", voicePlaceholder: "例如：像开发者本人，克制、好奇，不用 emoji", extra: "本次额外要求", extraPlaceholder: "例如：不要提价格，聚焦产品体验",
+    customizer: "自定义角色与提示词", customizerHint: "想更像你本人，或者按某种人设来回，就从这里补充一点语气和要求。", customizerEmpty: "默认会按通用真人语气生成。", customizerActive: (count: number) => `已启用 ${count} 项`, role: "角色 / 语气", rolePlaceholder: "例如：像开发者本人，克制、好奇，不用 emoji", roleHint: "告诉 AI 你想像谁说话、说得多直接、有没有口头禅。", prompt: "额外提示词", promptPlaceholder: "例如：不要提价格，聚焦产品体验", promptHint: "写这次特定的限制、重点或者避雷项。", usePreset: "快捷灵感", clearCustomizer: "清空", presetsRole: ["像朋友聊天", "像圈内人", "更像本人", "克制一点"], presetsPrompt: ["别太官方", "多一点人味", "一句一个重点", "别用 emoji"],
     generating: "正在生成…", generationPhases: ["正在理解推文语境", "正在构思三个不同角度", "正在整理成可编辑回复"], elapsed: (seconds: number) => `已等待 ${seconds} 秒`, regenerate: "重新生成 3 条", generate: "生成 3 条评论", candidate: "候选评论", chars: "字符", copy: "复制", inserting: "填入中…", insert: "填入回复框",
     footnote: "AI 负责起草，你负责判断和发布。", needConfig: "请先配置模型接口和 API Key。", inserted: "已填入 X 回复框，请检查后手动发布。", copied: "已复制到剪贴板。", copyFailed: "复制失败，请选中文本手动复制。", unknown: "发生了未知错误。",
   },
@@ -53,7 +53,7 @@ const copy = {
     tagline: "Turn a good post into a better conversation.", openSettings: "Open settings", currentPost: "Current post", xUser: "X user", reread: "Read again",
     empty: "Click AI reply under a post on X, or read the current post.", reading: "Reading…", readPost: "Read current post", manual: "Can't read it? Paste manually", paste: "Paste the post text…",
     replyStyle: "Reply style", styles: ["Concise", "Insightful", "Humorous", "Supportive", "Question"], length: "Length", short: "Short", medium: "Medium", replyLanguage: "Reply language", follow: "Match source", chinese: "Chinese", english: "English",
-    advanced: "Personalize", voice: "My voice", voicePlaceholder: "Example: restrained and curious, no emoji", extra: "Extra instruction", extraPlaceholder: "Example: focus on product experience, not pricing",
+    customizer: "Custom role and prompt", customizerHint: "Shape the reply so it sounds more like you, or like a specific persona, without changing the main workflow.", customizerEmpty: "Using the default natural voice.", customizerActive: (count: number) => `${count} custom input${count > 1 ? "s" : ""} active`, role: "Role / voice", rolePlaceholder: "Example: restrained and curious, no emoji", roleHint: "Describe who this should sound like and how direct or playful it should feel.", prompt: "Extra prompt", promptPlaceholder: "Example: focus on product experience, not pricing", promptHint: "Add one-off constraints, priorities, or things to avoid.", usePreset: "Quick ideas", clearCustomizer: "Clear", presetsRole: ["Like a friend", "Like an insider", "More like me", "More restrained"], presetsPrompt: ["Avoid corporate tone", "Feel more human", "One point per sentence", "No emoji"],
     generating: "Generating…", generationPhases: ["Reading the post context", "Exploring three reply angles", "Polishing editable drafts"], elapsed: (seconds: number) => `${seconds}s elapsed`, regenerate: "Generate 3 more", generate: "Generate 3 replies", candidate: "Draft replies", chars: "chars", copy: "Copy", inserting: "Inserting…", insert: "Insert into X",
     footnote: "AI drafts. You decide and publish.", needConfig: "Configure a model endpoint and API key first.", inserted: "Inserted into the X reply editor. Review it before posting.", copied: "Copied to clipboard.", copyFailed: "Copy failed. Select and copy the text manually.", unknown: "Something went wrong.",
   },
@@ -77,16 +77,17 @@ export function App() {
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [scrollHints, setScrollHints] = useState({ active: false, top: false, bottom: false });
   const [generationSeconds, setGenerationSeconds] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
   const scrollTimer = useRef<number | null>(null);
   const t = copy[preferences.uiLanguage];
 
   useEffect(() => {
     void Promise.all([getState(), getProviderConfig(), getProviderProfiles(), getAppPreferences()])
       .then(([state, config, savedProfiles, savedPreferences]) => {
-        setPost(state.post); setProvider(config); setProfiles(savedProfiles); setPreferences(savedPreferences);
+        setPost(state.post); setProvider(config); setProfiles(savedProfiles); setPreferences(savedPreferences); setSettings(savedPreferences.generationSettings ?? DEFAULT_GENERATION_SETTINGS);
       })
       .catch((error: Error) => setNotice({ tone: "error", text: error.message }))
-      .finally(() => setBusy(null));
+      .finally(() => { setBusy(null); setHydrated(true); });
   }, []);
 
   useEffect(() => {
@@ -100,6 +101,13 @@ export function App() {
     const timer = window.setInterval(() => setGenerationSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [busy]);
+
+  useEffect(() => {
+    if (!hydrated || sameSettings(preferences.generationSettings, settings)) return;
+    const next = { ...preferences, generationSettings: settings };
+    setPreferences(next);
+    void saveAppPreferences(next).catch((error) => setNotice({ tone: "error", text: asMessage(error, t.unknown) }));
+  }, [hydrated, preferences, settings, t.unknown]);
 
   useEffect(() => {
     if (notice?.tone !== "success") return;
@@ -147,7 +155,7 @@ export function App() {
   const source = useMemo<PostContext | null>(() => post ?? (manualText.trim() ? { url: "manual://source", text: manualText.trim(), extractedAt: Date.now() } : null), [manualText, post]);
 
   async function updatePreferences(update: Partial<AppPreferences>) {
-    const next = { ...preferences, ...update };
+    const next = { ...preferences, ...update, generationSettings: settings };
     setPreferences(next);
     try {
       await saveAppPreferences(next);
@@ -227,9 +235,29 @@ export function App() {
 
   function updateCandidate(id: string, text: string) { setCandidates((items) => items.map((item) => item.id === id ? { ...item, text } : item)); }
 
+  function updateGenerationSettings(update: Partial<GenerationSettings>) {
+    setSettings((current) => ({ ...current, ...update }));
+  }
+
+  function appendCustomizerValue(key: "voiceProfile" | "customInstruction", value: string) {
+    const current = settings[key].trim();
+    const next = current
+      ? current.includes(value)
+        ? current
+        : `${current}${preferences.uiLanguage === "zh" ? "；" : "; "}${value}`
+      : value;
+    updateGenerationSettings({ [key]: next });
+  }
+
+  function clearCustomizer() {
+    updateGenerationSettings({ voiceProfile: "", customInstruction: "" });
+  }
+
   const languageToggle = <button className="languageToggle" type="button" aria-label={preferences.uiLanguage === "zh" ? "Switch to English" : "切换到中文"} title={preferences.uiLanguage === "zh" ? "Switch to English" : "切换到中文"} onClick={() => void updatePreferences({ uiLanguage: preferences.uiLanguage === "zh" ? "en" : "zh" })}>{preferences.uiLanguage === "zh" ? "EN" : "中"}</button>;
   const generationPhase = t.generationPhases[generationSeconds < 4 ? 0 : generationSeconds < 9 ? 1 : 2];
   const shellClass = ["shell", scrollHints.active && "isScrolling", scrollHints.top && "canScrollTop", scrollHints.bottom && "canScrollBottom"].filter(Boolean).join(" ");
+  const activeCustomizerCount = Number(Boolean(settings.voiceProfile.trim())) + Number(Boolean(settings.customInstruction.trim()));
+  const hasCustomizer = activeCustomizerCount > 0;
 
   if (view === "settings") return (
     <main className={shellClass}>
@@ -256,7 +284,7 @@ export function App() {
       <header className="header"><div><p className="eyebrow">ReplyLoom</p><h1>{t.tagline}</h1></div><div className="headerActions">{languageToggle}<button className="iconButton" type="button" aria-label={t.openSettings} title={t.settings} onClick={() => { setNotice(null); setView("settings"); }}><GearIcon /></button></div></header>
       {notice && <Notice {...notice} />}
       <section className="sourceCard" aria-labelledby="source-title"><div className="sourceHeader"><p className="sectionLabel" id="source-title">{t.currentPost}</p>{post?.language && <span className="badge">{post.language.toUpperCase()}</span>}</div>{post ? <><p className="authorLine">{post.authorName ?? t.xUser} <span>{post.authorHandle}</span></p><p className="sourceText">{post.text}</p><button className="textButton" type="button" onClick={() => void handleExtract()} disabled={busy !== null}>{t.reread}</button></> : <><p className="emptyText">{t.empty}</p><button className="secondaryButton" type="button" onClick={() => void handleExtract()} disabled={busy !== null}>{busy === "extracting" ? t.reading : t.readPost}</button><details className="manualFallback"><summary>{t.manual}</summary><textarea value={manualText} onChange={(event) => setManualText(event.target.value)} placeholder={t.paste} rows={4} /></details></>}</section>
-      <section aria-labelledby="style-title"><p className="sectionLabel" id="style-title">{t.replyStyle}</p><div className="chips">{styleValues.map((value, index) => <button className={settings.style === value ? "chip active" : "chip"} type="button" key={value} onClick={() => setSettings({ ...settings, style: value })}>{t.styles[index]}</button>)}</div><div className="segmentedRow"><label className="compactField"><span>{t.length}</span><select value={settings.length} onChange={(event) => setSettings({ ...settings, length: event.target.value as GenerationSettings["length"] })}><option value="short">{t.short}</option><option value="medium">{t.medium}</option></select></label><label className="compactField"><span>{t.replyLanguage}</span><select value={settings.language} onChange={(event) => setSettings({ ...settings, language: event.target.value as GenerationSettings["language"] })}><option value="auto">{t.follow}</option><option value="zh">{t.chinese}</option><option value="en">{t.english}</option></select></label></div><button className="advancedToggle" type="button" onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced}>{t.advanced} {showAdvanced ? "−" : "+"}</button>{showAdvanced && <div className="advancedPanel"><label className="field"><span>{t.voice}</span><textarea rows={2} value={settings.voiceProfile} onChange={(event) => setSettings({ ...settings, voiceProfile: event.target.value })} placeholder={t.voicePlaceholder} /></label><label className="field"><span>{t.extra}</span><textarea rows={2} value={settings.customInstruction} onChange={(event) => setSettings({ ...settings, customInstruction: event.target.value })} placeholder={t.extraPlaceholder} /></label></div>}</section>
+      <section aria-labelledby="style-title"><p className="sectionLabel" id="style-title">{t.replyStyle}</p><div className="chips">{styleValues.map((value, index) => <button className={settings.style === value ? "chip active" : "chip"} type="button" key={value} onClick={() => updateGenerationSettings({ style: value })}>{t.styles[index]}</button>)}</div><div className="segmentedRow"><label className="compactField"><span>{t.length}</span><select value={settings.length} onChange={(event) => updateGenerationSettings({ length: event.target.value as GenerationSettings["length"] })}><option value="short">{t.short}</option><option value="medium">{t.medium}</option></select></label><label className="compactField"><span>{t.replyLanguage}</span><select value={settings.language} onChange={(event) => updateGenerationSettings({ language: event.target.value as GenerationSettings["language"] })}><option value="auto">{t.follow}</option><option value="zh">{t.chinese}</option><option value="en">{t.english}</option></select></label></div><div className="customizerCard"><button className="customizerToggle" type="button" onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced}><div><p className="customizerTitle">{t.customizer}</p><p className="customizerHint">{t.customizerHint}</p></div><div className="customizerToggleMeta">{hasCustomizer && <span className="customizerBadge">{t.customizerActive(activeCustomizerCount)}</span>}<span className="customizerChevron" aria-hidden="true">{showAdvanced ? "−" : "+"}</span></div></button>{hasCustomizer ? <div className="customizerPreview" aria-label={t.customizer}>{settings.voiceProfile.trim() && <span className="customizerPill">{settings.voiceProfile.trim()}</span>}{settings.customInstruction.trim() && <span className="customizerPill secondary">{settings.customInstruction.trim()}</span>}</div> : <p className="customizerEmpty">{t.customizerEmpty}</p>}{showAdvanced && <div className="advancedPanel customizerPanel"><label className="field"><span>{t.role}</span><textarea rows={3} value={settings.voiceProfile} onChange={(event) => updateGenerationSettings({ voiceProfile: event.target.value })} placeholder={t.rolePlaceholder} /><small>{t.roleHint}</small></label><div className="presetGroup"><span>{t.usePreset}</span><div className="presetChips">{t.presetsRole.map((preset) => <button className="presetChip" type="button" key={preset} onClick={() => appendCustomizerValue("voiceProfile", preset)}>{preset}</button>)}</div></div><label className="field"><span>{t.prompt}</span><textarea rows={3} value={settings.customInstruction} onChange={(event) => updateGenerationSettings({ customInstruction: event.target.value })} placeholder={t.promptPlaceholder} /><small>{t.promptHint}</small></label><div className="presetGroup"><span>{t.usePreset}</span><div className="presetChips">{t.presetsPrompt.map((preset) => <button className="presetChip" type="button" key={preset} onClick={() => appendCustomizerValue("customInstruction", preset)}>{preset}</button>)}</div></div><div className="customizerFooter"><button className="textButton" type="button" onClick={clearCustomizer} disabled={!hasCustomizer}>{t.clearCustomizer}</button></div></div>}</div></section>
       <button className="primaryButton" type="button" disabled={!source || busy !== null} onClick={() => void handleGenerate()}>{busy === "generating" ? t.generating : candidates.length ? t.regenerate : t.generate}</button>
       {busy === "generating" && <section className="generationProgress" role="status" aria-live="polite"><div className="generationHeading"><span className="generationOrb" aria-hidden="true"><i /><i /><i /></span><div><strong>{generationPhase}</strong><small>{t.elapsed(generationSeconds)} · {provider.model}</small></div></div><div className="generationTrack" aria-hidden="true"><span /></div><div className="draftShimmers" aria-hidden="true"><i /><i /><i /></div></section>}
       {candidates.length > 0 && <section className="candidateList" aria-labelledby="candidate-title"><p className="sectionLabel" id="candidate-title">{t.candidate}</p>{candidates.map((candidate, index) => <article className="candidateCard" key={candidate.id}><div className="candidateMeta"><span>0{index + 1}</span><span>{candidate.text.length} {t.chars}</span></div><textarea value={candidate.text} onChange={(event) => updateCandidate(candidate.id, event.target.value)} rows={4} aria-label={`${t.candidate} ${index + 1}`} /><div className="candidateActions"><button className="textButton" type="button" onClick={() => void handleCopy(candidate.text)}>{t.copy}</button><button className="insertButton" type="button" disabled={!candidate.text.trim() || busy !== null} onClick={() => void handleInsert(candidate)}><InsertIcon />{busy === "inserting" ? t.inserting : t.insert}</button></div></article>)}</section>}
@@ -269,3 +297,10 @@ function Notice({ tone, text }: { tone: "error" | "success" | "info"; text: stri
 function GearIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63a1.7 1.7 0 0 0 1-1.55V3h4v.08A1.7 1.7 0 0 0 15 4.63a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.37 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>; }
 function InsertIcon() { return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h11"/><path d="m11 8 4 4-4 4"/><path d="M20 5v14"/></svg>; }
 function asMessage(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
+function sameSettings(left: GenerationSettings | undefined, right: GenerationSettings) {
+  return left?.style === right.style
+    && left?.length === right.length
+    && left?.language === right.language
+    && left?.voiceProfile === right.voiceProfile
+    && left?.customInstruction === right.customInstruction;
+}

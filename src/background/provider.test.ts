@@ -48,6 +48,21 @@ describe("provider adapter", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
   });
 
+  it("lightly naturalizes Chinese candidates without a second model call", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ candidates: [
+        { text: "值得一提的是，这个开头挺自然！" },
+        { text: "节奏已经有了，再把内容方向钉住会更稳。" },
+        { text: "蓝V只是起点，后面准备主打哪类内容？" },
+      ] }) } }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateReplies(config, { ...post, text: "刚拿到蓝V，准备开始认真做 X 了。", language: "zh" }, { ...DEFAULT_GENERATION_SETTINGS, language: "zh" });
+    expect(result[0]?.text).toBe("这个开头挺自然！");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("normalizes authentication errors without exposing the key", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: "Invalid credential" } }), { status: 401 })));
     await expect(testProvider(config)).rejects.toMatchObject({ code: "AUTH", message: "Invalid credential" });

@@ -1,6 +1,10 @@
 import type { PostContext } from "../shared/types";
 
 const TWEET_SELECTOR = 'article[data-testid="tweet"]';
+const RECENT_INSERT_WINDOW_MS = 1500;
+let lastInsertSignature = "";
+let lastInsertAt = 0;
+const activeInsertSignatures = new Set<string>();
 
 export function findTweetFromTarget(target: EventTarget | null): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(TWEET_SELECTOR) : null;
@@ -19,17 +23,14 @@ export function findBestVisibleTweet(root: ParentNode = document): HTMLElement |
 
 export function extractPostContext(article: HTMLElement): PostContext | null {
   const textNode = article.querySelector<HTMLElement>('[data-testid="tweetText"]');
-  const text = getElementText(textNode);
+  const text = textNode ? getElementText(textNode) : extractLongFormText(article);
   if (!text) return null;
 
   const statusLinks = Array.from(article.querySelectorAll<HTMLAnchorElement>('a[href*="/status/"]'));
   const canonical = statusLinks.find((link) => /\/[^/]+\/status\/\d+/.test(link.pathname)) ?? statusLinks[0];
   const url = canonical ? new URL(canonical.getAttribute("href") ?? "", location.origin).href : location.href;
   const id = url.match(/\/status\/(\d+)/)?.[1];
-  const userName = article.querySelector<HTMLElement>('[data-testid="User-Name"]');
-  const parts = getElementText(userName).split("\n").map((part) => part.trim()).filter(Boolean);
-  const handle = parts.find((part) => part.startsWith("@"));
-  const authorName = parts.find((part) => !part.startsWith("@") && !/^·$/.test(part));
+  const { authorName, authorHandle } = extractAuthorInfo(article);
   const lang = textNode?.getAttribute("lang") ?? detectLanguage(text);
 
   const tweetTexts = Array.from(article.querySelectorAll<HTMLElement>('[data-testid="tweetText"]'));
@@ -39,7 +40,7 @@ export function extractPostContext(article: HTMLElement): PostContext | null {
     id,
     url,
     authorName,
-    authorHandle: handle,
+    authorHandle,
     text,
     language: lang,
     quotedPost: quoteText && quoteText !== text ? { text: quoteText, url } : undefined,
@@ -58,6 +59,10 @@ export function findTweetByUrl(postUrl: string, root: ParentNode = document): HT
 export async function insertDraftIntoComposer(article: HTMLElement | null, text: string): Promise<boolean> {
   const editor = findBestReplyEditor(article);
   if (!editor) return false;
+  const signature = insertSignature(editor, text);
+  if (editorHasText(editor, text)) return collapseToEnd(editor);
+  if (isRecentDuplicateInsert(signature)) return collapseToEnd(editor);
+  if (activeInsertSignatures.has(signature)) return collapseToEnd(editor);
 
   // Replace whatever is in the editor with the draft, deciding success by
   // inspecting the editor's text afterwards rather than trusting a command's
@@ -68,10 +73,15 @@ export async function insertDraftIntoComposer(article: HTMLElement | null, text:
   // appeared twice, and the trailing copy (absent from DraftJS's model) could
   // not be deleted, even though posting used the single modelled copy. We never
   // hand-insert DOM nodes now — if no strategy lands, we simply report failure.
-  if (insertViaCommand(editor, text)) return collapseToEnd(editor);
-  if (insertViaPaste(editor, text)) return collapseToEnd(editor);
-  if (insertViaBeforeInput(editor, text)) return collapseToEnd(editor);
-  return false;
+  activeInsertSignatures.add(signature);
+  try {
+    for (const strategy of getInsertStrategies(editor)) {
+      if (await attemptInsert(editor, text, strategy)) return markInsertSuccess(signature, editor);
+    }
+    return false;
+  } finally {
+    activeInsertSignatures.delete(signature);
+  }
 }
 
 // True once the editor's text matches the draft. Whitespace is collapsed away
@@ -92,11 +102,34 @@ function selectAllContent(editor: HTMLElement) {
   selection?.addRange(range);
 }
 
+async function attemptInsert(editor: HTMLElement, text: string, strategy: (editor: HTMLElement, text: string) => boolean) {
+  if (!strategy(editor, text)) return false;
+  return waitForEditorText(editor, text);
+}
+
+async function waitForEditorText(editor: HTMLElement, text: string) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (editorHasText(editor, text)) return true;
+    await new Promise((resolve) => window.setTimeout(resolve, 25));
+  }
+  return editorHasText(editor, text);
+}
+
+function getInsertStrategies(editor: HTMLElement) {
+  // X's composer can duplicate text when driven through execCommand even after
+  // we stopped chaining multiple fallbacks. Prefer paste/beforeinput there so
+  // the editor sees one high-level user intent, and keep execCommand as a last
+  // resort for simpler editors.
+  return isXComposer(editor)
+    ? [insertViaPaste, insertViaBeforeInput, insertViaCommand]
+    : [insertViaCommand, insertViaPaste, insertViaBeforeInput];
+}
+
 function insertViaCommand(editor: HTMLElement, text: string): boolean {
   if (typeof document.execCommand !== "function") return false;
   selectAllContent(editor);
   document.execCommand("insertText", false, text);
-  return editorHasText(editor, text);
+  return true;
 }
 
 function insertViaPaste(editor: HTMLElement, text: string): boolean {
@@ -106,7 +139,7 @@ function insertViaPaste(editor: HTMLElement, text: string): boolean {
     const data = new DataTransfer();
     data.setData("text/plain", text);
     editor.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
-    return editorHasText(editor, text);
+    return true;
   } catch {
     return false;
   }
@@ -116,7 +149,7 @@ function insertViaBeforeInput(editor: HTMLElement, text: string): boolean {
   selectAllContent(editor);
   editor.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertText", data: text }));
   editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
-  return editorHasText(editor, text);
+  return true;
 }
 
 // Collapse the caret to the end so the user can keep typing.
@@ -129,6 +162,35 @@ function collapseToEnd(editor: HTMLElement): boolean {
   selection?.addRange(end);
   editor.focus();
   return true;
+}
+
+function markInsertSuccess(signature: string, editor: HTMLElement) {
+  lastInsertSignature = signature;
+  lastInsertAt = Date.now();
+  return collapseToEnd(editor);
+}
+
+function isRecentDuplicateInsert(signature: string) {
+  return lastInsertSignature === signature && Date.now() - lastInsertAt < RECENT_INSERT_WINDOW_MS;
+}
+
+function insertSignature(editor: HTMLElement, text: string) {
+  return `${editorSignature(editor)}::${text}`;
+}
+
+function editorSignature(editor: HTMLElement) {
+  return [
+    editor.getAttribute("data-testid") ?? "",
+    editor.getAttribute("aria-label") ?? "",
+    editor.getAttribute("role") ?? "",
+    editor.closest('[role="dialog"]') ? "dialog" : "page",
+  ].join("|");
+}
+
+function isXComposer(editor: HTMLElement) {
+  return editor.getAttribute("data-testid") === "tweetTextarea_0"
+    || editor.matches('[data-testid="tweetTextarea_0"]')
+    || location.hostname === "x.com";
 }
 
 function findReplyEditors() {
@@ -167,6 +229,72 @@ function visibleArea(element: HTMLElement) {
 
 function detectLanguage(text: string) {
   return /[\u3400-\u9fff]/.test(text) ? "zh" : "en";
+}
+
+function extractAuthorInfo(article: HTMLElement) {
+  const userName = article.querySelector<HTMLElement>('[data-testid="User-Name"]');
+  const userParts = getElementText(userName).split("\n").map((part) => part.trim()).filter(Boolean);
+  const userHandle = userParts.find((part) => part.startsWith("@"));
+  const userAuthorName = userParts.find((part) => !part.startsWith("@") && !/^·$/.test(part));
+  if (userHandle || userAuthorName) return { authorName: userAuthorName, authorHandle: userHandle };
+
+  const profileLinks = Array.from(article.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'))
+    .map((link) => ({ link, path: new URL(link.href, location.origin).pathname, text: getElementText(link) }))
+    .filter(({ path }) => /^\/[^/]+$/.test(path));
+  const handleLink = profileLinks.find(({ text }) => text.startsWith("@")) ?? profileLinks[1] ?? profileLinks[0];
+  const authorHandle = handleLink?.text.startsWith("@")
+    ? handleLink.text
+    : handleLink?.path
+      ? `@${handleLink.path.slice(1)}`
+      : undefined;
+  const authorName = profileLinks.find(({ text }) => text && text !== authorHandle)?.text;
+  return { authorName, authorHandle };
+}
+
+function extractLongFormText(article: HTMLElement) {
+  const body = findLongestReadableBlock(article);
+  if (!body) return "";
+  const bodyText = normalizeLongFormText(getElementText(body));
+  if (!bodyText) return "";
+
+  const title = getLongFormTitle(article, body);
+  return title && !bodyText.startsWith(title) ? `${title}\n\n${bodyText}` : bodyText;
+}
+
+function getLongFormTitle(article: HTMLElement, body: HTMLElement) {
+  const candidates = Array.from(article.querySelectorAll<HTMLElement>("h1, h2, div, span"))
+    .map((element) => ({ element, text: getElementText(element) }))
+    .filter(({ element, text }) =>
+      element !== body
+      && !body.contains(element)
+      && text.length >= 8
+      && text.length <= 140
+      && !/^(?:@\w+|回复|转帖|喜欢|书签|查看引用|订阅|总结|更多|AI reply|AI 回复|reply|repost|like|bookmark|views?)$/i.test(text),
+    );
+  return candidates.sort((left, right) => right.text.length - left.text.length)[0]?.text ?? "";
+}
+
+function findLongestReadableBlock(article: HTMLElement) {
+  const candidates = Array.from(article.querySelectorAll<HTMLElement>("div, section, article"))
+    .map((element) => ({ element, text: normalizeLongFormText(getElementText(element)) }))
+    .filter(({ text }) => text.length >= 140);
+  return candidates.sort((left, right) => right.text.length - left.text.length)[0]?.element ?? null;
+}
+
+function normalizeLongFormText(text: string) {
+  return text
+    .split("\n")
+    .map((part) => part.trim())
+    .filter((part) =>
+      part
+      && !/^(?:@\w+|回复|转帖|喜欢|书签|查看引用|订阅|总结|更多|复制到剪贴板|联系方式|AI reply|AI 回复)$/.test(part)
+      && !/^\d+(?:\s*回复|\s*次转帖|\s*喜欢|\s*书签|\s*查看|\s*次观看)/.test(part),
+    )
+    .filter((part) =>
+      !/^[\d,.]+$/.test(part)
+      && !/^(?:reply|repost|like|bookmark|views?)$/i.test(part),
+    )
+    .join("\n");
 }
 
 function getElementText(element: HTMLElement | null) {

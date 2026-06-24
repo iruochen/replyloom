@@ -39,6 +39,7 @@ describe("provider profile storage", () => {
 
   it("defaults new installations to the English interface", async () => {
     expect((await getAppPreferences()).uiLanguage).toBe("en");
+    expect((await getAppPreferences()).generationSettings.voiceProfile).toBe("");
   });
 
   it("migrates the previously saved misspelled MiniMax hostname", async () => {

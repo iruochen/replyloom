@@ -29,6 +29,7 @@ export type ProviderProfiles = Record<ProviderPreset, ProviderConfig>;
 export interface AppPreferences {
   uiLanguage: UiLanguage;
   panelMode: PanelMode;
+  generationSettings: GenerationSettings;
 }
 
 export interface GenerationSettings {
@@ -99,15 +100,18 @@ export const PROVIDER_DEFAULTS: ProviderProfiles = {
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = { ...PROVIDER_DEFAULTS.openai };
 
-export const DEFAULT_APP_PREFERENCES: AppPreferences = {
-  uiLanguage: "en",
-  panelMode: "floating",
-};
-
 export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
   style: "concise",
   length: "short",
   language: "auto",
   customInstruction: "",
   voiceProfile: "",
+};
+
+export const DEFAULT_APP_PREFERENCES: AppPreferences = {
+  uiLanguage: "en",
+  panelMode: "floating",
+  generationSettings: {
+    ...DEFAULT_GENERATION_SETTINGS,
+  },
 };

@@ -1,4 +1,5 @@
 import { parseCandidates } from "../shared/candidates";
+import { naturalizeCandidateText } from "../shared/naturalize";
 import { buildReplyPrompt } from "../shared/prompts";
 import { PROVIDER_DEFAULTS, type ConnectionResult, type GenerationSettings, type PostContext, type ProviderConfig, type ReplyCandidate } from "../shared/types";
 
@@ -51,6 +52,7 @@ export async function listModels(config: ProviderConfig): Promise<string[]> {
 export async function generateReplies(config: ProviderConfig, post: PostContext, settings: GenerationSettings): Promise<ReplyCandidate[]> {
   validateConfig(config);
   const prompt = buildReplyPrompt(post, settings);
+  const languageHint = inferReplyLanguage(post, settings);
   const outputBudget = config.preset === "minimax"
     ? (settings.length === "short" ? 2048 : 3072)
     : (settings.length === "short" ? 500 : 800);
@@ -59,18 +61,31 @@ export async function generateReplies(config: ProviderConfig, post: PostContext,
     { role: "user", content: prompt.user },
   ], outputBudget, true);
   try {
-    return parseCandidates(content);
+    return naturalizeCandidates(parseCandidates(content), languageHint);
   } catch {
     const repaired = await requestChat(config, [
       { role: "system", content: "Convert the supplied draft replies into valid JSON only. Do not add commentary." },
       { role: "user", content: `Return exactly this shape with three distinct items: {"candidates":[{"text":"...","angle":"..."},{"text":"...","angle":"..."},{"text":"...","angle":"..."}]}\n\nDraft response:\n${content}` },
     ], config.preset === "minimax" ? 2048 : 600, true);
     try {
-      return parseCandidates(repaired);
+      return naturalizeCandidates(parseCandidates(repaired), languageHint);
     } catch {
       throw new ProviderError("INVALID_RESPONSE", `The model returned an incomplete or unsupported reply format (${repaired.length} characters). Retry once; if it persists, choose a non-reasoning model.`);
     }
   }
+}
+
+function naturalizeCandidates(candidates: ReplyCandidate[], languageHint: "zh" | "en") {
+  return candidates.map((candidate) => ({
+    ...candidate,
+    text: naturalizeCandidateText(candidate.text, languageHint),
+  }));
+}
+
+function inferReplyLanguage(post: PostContext, settings: GenerationSettings): "zh" | "en" {
+  if (settings.language === "zh") return "zh";
+  if (settings.language === "en") return "en";
+  return post.language?.startsWith("zh") || /[\u3400-\u9fff]/.test(post.text) ? "zh" : "en";
 }
 
 interface ChatMessage {
