@@ -9,6 +9,7 @@
     "package": "npm run build && node scripts/package-extension.mjs",
     "video:studio": "remotion studio video/src/index.ts --public-dir=video/public",
     "video:still": "remotion still video/src/index.ts ReplyLoomPromo store-assets/video-cover-1920x1080.png --frame=210 --public-dir=video/public",
+    "store:top-promo": "remotion still video/src/index.ts ReplyLoomTopPromo store-assets/replyloom-top-promo-1400x560.jpg --image-format=jpeg --jpeg-quality=95 --public-dir=video/public",
     "video:render": "remotion render video/src/index.ts ReplyLoomPromo store-assets/replyloom-intro-1080p.mp4 --codec=h264 --crf=18 --public-dir=video/public",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getProviderConfig, getProviderProfiles, saveProviderConfig } from "./storage";
+import { getAppPreferences, getProviderConfig, getProviderProfiles, saveProviderConfig } from "./storage";
 import type { ProviderConfig } from "../shared/types";
 
 function storageArea(values: Record<string, unknown>) {
@@ -35,6 +35,10 @@ describe("provider profile storage", () => {
 
   it("uses the current MiniMax minimaxi.com endpoint by default", async () => {
     expect((await getProviderProfiles()).minimax.baseUrl).toBe("https://api.minimaxi.com/v1");
+  });
+
+  it("defaults new installations to the English interface", async () => {
+    expect((await getAppPreferences()).uiLanguage).toBe("en");
   });
 
   it("migrates the previously saved misspelled MiniMax hostname", async () => {

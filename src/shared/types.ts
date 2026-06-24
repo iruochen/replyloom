@@ -100,7 +100,7 @@ export const PROVIDER_DEFAULTS: ProviderProfiles = {
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = { ...PROVIDER_DEFAULTS.openai };
 
 export const DEFAULT_APP_PREFERENCES: AppPreferences = {
-  uiLanguage: "zh",
+  uiLanguage: "en",
   panelMode: "side",
 };
 

@@ -13,6 +13,19 @@ const providerHints: Record<ProviderPreset, { placeholder: string; zh: string; e
   siliconflow: { placeholder: "https://api.siliconflow.cn/v1", zh: "硅基流动官方 OpenAI-compatible 地址。", en: "Official SiliconFlow OpenAI-compatible endpoint." },
 };
 
+const providerLabels: Record<ProviderPreset, { zh: string; en: string }> = {
+  openai: {zh: "OpenAI", en: "OpenAI"},
+  deepseek: {zh: "DeepSeek", en: "DeepSeek"},
+  minimax: {zh: "MiniMax", en: "MiniMax"},
+  glm: {zh: "智谱 GLM", en: "Zhipu GLM"},
+  doubao: {zh: "豆包 / 火山方舟", en: "Doubao / Volcengine Ark"},
+  qwen: {zh: "通义千问 / 阿里云百炼", en: "Qwen / Alibaba Cloud Model Studio"},
+  moonshot: {zh: "Moonshot / Kimi", en: "Moonshot AI / Kimi"},
+  siliconflow: {zh: "硅基流动", en: "SiliconFlow"},
+};
+
+const providerPresets = Object.keys(providerLabels) as ProviderPreset[];
+
 const copy = {
   zh: {
     settings: "设置", connect: "连接你的模型", back: "返回评论生成", provider: "服务商",
@@ -24,7 +37,7 @@ const copy = {
     display: "界面", language: "界面语言", panelMode: "面板模式", side: "固定侧边栏", floating: "悬浮面板", floatingHint: "悬浮模式会在 X 页面右下角显示 ReplyLoom 按钮。", floatingEnabled: "悬浮模式已启用。关闭右侧栏后，点击 X 页面右下角的 RL 按钮。", sideEnabled: "固定侧边栏模式已启用。",
     tagline: "把一条好推文，变成一段好对话。", openSettings: "打开设置", currentPost: "当前推文", xUser: "X 用户", reread: "重新读取",
     empty: "在 X 上点击推文下方的 AI reply，或读取当前页面中的推文。", reading: "读取中…", readPost: "读取当前推文", manual: "读取失败？手动粘贴", paste: "粘贴推文正文…",
-    replyStyle: "评论风格", styles: ["精简", "有洞察", "幽默", "支持", "提问"], length: "长度", short: "短", medium: "中等", replyLanguage: "回复语言", follow: "跟随原文",
+    replyStyle: "评论风格", styles: ["精简", "有洞察", "幽默", "支持", "提问"], length: "长度", short: "短", medium: "中等", replyLanguage: "回复语言", follow: "跟随原文", chinese: "中文", english: "英文",
     advanced: "个性化设置", voice: "我的表达风格", voicePlaceholder: "例如：像开发者本人，克制、好奇，不用 emoji", extra: "本次额外要求", extraPlaceholder: "例如：不要提价格，聚焦产品体验",
     generating: "正在生成…", generationPhases: ["正在理解推文语境", "正在构思三个不同角度", "正在整理成可编辑回复"], elapsed: (seconds: number) => `已等待 ${seconds} 秒`, regenerate: "重新生成 3 条", generate: "生成 3 条评论", candidate: "候选评论", chars: "字符", copy: "复制", inserting: "填入中…", insert: "填入回复框",
     footnote: "AI 负责起草，你负责判断和发布。", needConfig: "请先配置模型接口和 API Key。", inserted: "已填入 X 回复框，请检查后手动发布。", copied: "已复制到剪贴板。", copyFailed: "复制失败，请选中文本手动复制。", unknown: "发生了未知错误。",
@@ -39,7 +52,7 @@ const copy = {
     display: "Appearance", language: "Interface language", panelMode: "Panel mode", side: "Docked side panel", floating: "Floating panel", floatingHint: "Floating mode adds a ReplyLoom launcher to the lower-right corner of X.", floatingEnabled: "Floating mode is on. Close the side panel, then click RL in the lower-right corner of X.", sideEnabled: "Docked side panel mode is on.",
     tagline: "Turn a good post into a better conversation.", openSettings: "Open settings", currentPost: "Current post", xUser: "X user", reread: "Read again",
     empty: "Click AI reply under a post on X, or read the current post.", reading: "Reading…", readPost: "Read current post", manual: "Can't read it? Paste manually", paste: "Paste the post text…",
-    replyStyle: "Reply style", styles: ["Concise", "Insightful", "Humorous", "Supportive", "Question"], length: "Length", short: "Short", medium: "Medium", replyLanguage: "Reply language", follow: "Match source",
+    replyStyle: "Reply style", styles: ["Concise", "Insightful", "Humorous", "Supportive", "Question"], length: "Length", short: "Short", medium: "Medium", replyLanguage: "Reply language", follow: "Match source", chinese: "Chinese", english: "English",
     advanced: "Personalize", voice: "My voice", voicePlaceholder: "Example: restrained and curious, no emoji", extra: "Extra instruction", extraPlaceholder: "Example: focus on product experience, not pricing",
     generating: "Generating…", generationPhases: ["Reading the post context", "Exploring three reply angles", "Polishing editable drafts"], elapsed: (seconds: number) => `${seconds}s elapsed`, regenerate: "Generate 3 more", generate: "Generate 3 replies", candidate: "Draft replies", chars: "chars", copy: "Copy", inserting: "Inserting…", insert: "Insert into X",
     footnote: "AI drafts. You decide and publish.", needConfig: "Configure a model endpoint and API key first.", inserted: "Inserted into the X reply editor. Review it before posting.", copied: "Copied to clipboard.", copyFailed: "Copy failed. Select and copy the text manually.", unknown: "Something went wrong.",
@@ -75,6 +88,10 @@ export function App() {
       .catch((error: Error) => setNotice({ tone: "error", text: error.message }))
       .finally(() => setBusy(null));
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = preferences.uiLanguage === "zh" ? "zh-CN" : "en";
+  }, [preferences.uiLanguage]);
 
   useEffect(() => {
     if (busy !== "generating") return;
@@ -194,7 +211,7 @@ export function App() {
 
   function updateCandidate(id: string, text: string) { setCandidates((items) => items.map((item) => item.id === id ? { ...item, text } : item)); }
 
-  const languageToggle = <button className="languageToggle" type="button" aria-label={preferences.uiLanguage === "zh" ? "Switch to English" : "切换到中文"} title={preferences.uiLanguage === "zh" ? "Switch to English" : "切换到中文"} onClick={() => void updatePreferences({ uiLanguage: preferences.uiLanguage === "zh" ? "en" : "zh" })}>{preferences.uiLanguage === "zh" ? "中" : "EN"}</button>;
+  const languageToggle = <button className="languageToggle" type="button" aria-label={preferences.uiLanguage === "zh" ? "Switch to English" : "切换到中文"} title={preferences.uiLanguage === "zh" ? "Switch to English" : "切换到中文"} onClick={() => void updatePreferences({ uiLanguage: preferences.uiLanguage === "zh" ? "en" : "zh" })}>{preferences.uiLanguage === "zh" ? "EN" : "中"}</button>;
   const generationPhase = t.generationPhases[generationSeconds < 4 ? 0 : generationSeconds < 9 ? 1 : 2];
   const shellClass = ["shell", scrollHints.active && "isScrolling", scrollHints.top && "canScrollTop", scrollHints.bottom && "canScrollBottom"].filter(Boolean).join(" ");
 
@@ -207,7 +224,7 @@ export function App() {
         <small>{t.floatingHint}</small>
       </section>
       <form className="form" onSubmit={(event) => { event.preventDefault(); void handleProviderAction(false); }}>
-        <label className="field"><span>{t.provider}</span><select value={provider.preset} onChange={(event) => selectProvider(event.target.value as ProviderPreset)}><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="minimax">MiniMax</option><option value="glm">智谱 GLM</option><option value="doubao">豆包 / 火山方舟</option><option value="qwen">通义千问 / 百炼</option><option value="moonshot">Moonshot / Kimi</option><option value="siliconflow">硅基流动</option></select></label>
+        <label className="field"><span>{t.provider}</span><select value={provider.preset} onChange={(event) => selectProvider(event.target.value as ProviderPreset)}>{providerPresets.map((preset) => <option key={preset} value={preset}>{providerLabels[preset][preferences.uiLanguage]}</option>)}</select></label>
         <label className="field"><span>{t.baseUrl}</span><input type="url" required readOnly value={provider.baseUrl} placeholder={providerHints[provider.preset].placeholder} /><small>{providerHints[provider.preset][preferences.uiLanguage]}<br />{t.actualEndpoint}: <code>{provider.baseUrl ? `${provider.baseUrl.replace(/\/+$/, "")}/chat/completions` : "Base URL + /chat/completions"}</code></small></label>
         <label className="field"><span>{t.model}</span><div className="inputWithAction">{modelOptions.length > 0 ? <select className="modelSelect" required value={provider.model} onChange={(event) => setProvider({ ...provider, model: event.target.value })}>{modelOptions.map((model) => <option key={model} value={model}>{model}</option>)}</select> : <input required value={provider.model} onChange={(event) => setProvider({ ...provider, model: event.target.value })} placeholder={t.modelPlaceholder} />}<button className="modelAction" type="button" disabled={busy !== null || !provider.apiKey.trim() || !provider.baseUrl.trim()} onClick={() => void handleLoadModels()}>{busy === "models" ? t.loading : t.loadModels}</button></div><small>{t.modelHelp}</small></label>
         <label className="field"><span>{t.apiKey}</span><div className="inputWithAction"><input required type={showKey ? "text" : "password"} value={provider.apiKey} onChange={(event) => setProvider({ ...provider, apiKey: event.target.value })} autoComplete="off" /><button className="keyAction" type="button" onClick={() => setShowKey((value) => !value)}>{showKey ? t.hide : t.show}</button></div></label>
@@ -223,7 +240,7 @@ export function App() {
       <header className="header"><div><p className="eyebrow">ReplyLoom</p><h1>{t.tagline}</h1></div><div className="headerActions">{languageToggle}<button className="iconButton" type="button" aria-label={t.openSettings} title={t.settings} onClick={() => { setNotice(null); setView("settings"); }}><GearIcon /></button></div></header>
       {notice && <Notice {...notice} />}
       <section className="sourceCard" aria-labelledby="source-title"><div className="sourceHeader"><p className="sectionLabel" id="source-title">{t.currentPost}</p>{post?.language && <span className="badge">{post.language.toUpperCase()}</span>}</div>{post ? <><p className="authorLine">{post.authorName ?? t.xUser} <span>{post.authorHandle}</span></p><p className="sourceText">{post.text}</p><button className="textButton" type="button" onClick={() => void handleExtract()} disabled={busy !== null}>{t.reread}</button></> : <><p className="emptyText">{t.empty}</p><button className="secondaryButton" type="button" onClick={() => void handleExtract()} disabled={busy !== null}>{busy === "extracting" ? t.reading : t.readPost}</button><details className="manualFallback"><summary>{t.manual}</summary><textarea value={manualText} onChange={(event) => setManualText(event.target.value)} placeholder={t.paste} rows={4} /></details></>}</section>
-      <section aria-labelledby="style-title"><p className="sectionLabel" id="style-title">{t.replyStyle}</p><div className="chips">{styleValues.map((value, index) => <button className={settings.style === value ? "chip active" : "chip"} type="button" key={value} onClick={() => setSettings({ ...settings, style: value })}>{t.styles[index]}</button>)}</div><div className="segmentedRow"><label className="compactField"><span>{t.length}</span><select value={settings.length} onChange={(event) => setSettings({ ...settings, length: event.target.value as GenerationSettings["length"] })}><option value="short">{t.short}</option><option value="medium">{t.medium}</option></select></label><label className="compactField"><span>{t.replyLanguage}</span><select value={settings.language} onChange={(event) => setSettings({ ...settings, language: event.target.value as GenerationSettings["language"] })}><option value="auto">{t.follow}</option><option value="zh">中文</option><option value="en">English</option></select></label></div><button className="advancedToggle" type="button" onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced}>{t.advanced} {showAdvanced ? "−" : "+"}</button>{showAdvanced && <div className="advancedPanel"><label className="field"><span>{t.voice}</span><textarea rows={2} value={settings.voiceProfile} onChange={(event) => setSettings({ ...settings, voiceProfile: event.target.value })} placeholder={t.voicePlaceholder} /></label><label className="field"><span>{t.extra}</span><textarea rows={2} value={settings.customInstruction} onChange={(event) => setSettings({ ...settings, customInstruction: event.target.value })} placeholder={t.extraPlaceholder} /></label></div>}</section>
+      <section aria-labelledby="style-title"><p className="sectionLabel" id="style-title">{t.replyStyle}</p><div className="chips">{styleValues.map((value, index) => <button className={settings.style === value ? "chip active" : "chip"} type="button" key={value} onClick={() => setSettings({ ...settings, style: value })}>{t.styles[index]}</button>)}</div><div className="segmentedRow"><label className="compactField"><span>{t.length}</span><select value={settings.length} onChange={(event) => setSettings({ ...settings, length: event.target.value as GenerationSettings["length"] })}><option value="short">{t.short}</option><option value="medium">{t.medium}</option></select></label><label className="compactField"><span>{t.replyLanguage}</span><select value={settings.language} onChange={(event) => setSettings({ ...settings, language: event.target.value as GenerationSettings["language"] })}><option value="auto">{t.follow}</option><option value="zh">{t.chinese}</option><option value="en">{t.english}</option></select></label></div><button className="advancedToggle" type="button" onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced}>{t.advanced} {showAdvanced ? "−" : "+"}</button>{showAdvanced && <div className="advancedPanel"><label className="field"><span>{t.voice}</span><textarea rows={2} value={settings.voiceProfile} onChange={(event) => setSettings({ ...settings, voiceProfile: event.target.value })} placeholder={t.voicePlaceholder} /></label><label className="field"><span>{t.extra}</span><textarea rows={2} value={settings.customInstruction} onChange={(event) => setSettings({ ...settings, customInstruction: event.target.value })} placeholder={t.extraPlaceholder} /></label></div>}</section>
       <button className="primaryButton" type="button" disabled={!source || busy !== null} onClick={() => void handleGenerate()}>{busy === "generating" ? t.generating : candidates.length ? t.regenerate : t.generate}</button>
       {busy === "generating" && <section className="generationProgress" role="status" aria-live="polite"><div className="generationHeading"><span className="generationOrb" aria-hidden="true"><i /><i /><i /></span><div><strong>{generationPhase}</strong><small>{t.elapsed(generationSeconds)} · {provider.model}</small></div></div><div className="generationTrack" aria-hidden="true"><span /></div><div className="draftShimmers" aria-hidden="true"><i /><i /><i /></div></section>}
       {candidates.length > 0 && <section className="candidateList" aria-labelledby="candidate-title"><p className="sectionLabel" id="candidate-title">{t.candidate}</p>{candidates.map((candidate, index) => <article className="candidateCard" key={candidate.id}><div className="candidateMeta"><span>0{index + 1}</span><span>{candidate.text.length} {t.chars}</span></div><textarea value={candidate.text} onChange={(event) => updateCandidate(candidate.id, event.target.value)} rows={4} aria-label={`${t.candidate} ${index + 1}`} /><div className="candidateActions"><button className="textButton" type="button" onClick={() => void handleCopy(candidate.text)}>{t.copy}</button><button className="insertButton" type="button" disabled={!candidate.text.trim() || busy !== null} onClick={() => void handleInsert(candidate)}>{busy === "inserting" ? t.inserting : t.insert}</button></div></article>)}</section>}

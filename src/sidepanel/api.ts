@@ -47,7 +47,7 @@ export function saveProviderConfig(config: ProviderConfig) {
 }
 
 export function testProvider(config: ProviderConfig) {
-  if (!hasExtensionRuntime) return Promise.resolve({ ok: true, message: `本地预览已连接到 ${config.model}。` });
+  if (!hasExtensionRuntime) return Promise.resolve({ ok: true, message: `Preview connected to ${config.model}.` });
   return sendRuntimeMessage<ConnectionResult>({ type: "TEST_PROVIDER", config });
 }
 
@@ -58,9 +58,9 @@ export function listProviderModels(config: ProviderConfig) {
 
 export function generateReplies(post: PostContext, settings: GenerationSettings) {
   if (!hasExtensionRuntime) return Promise.resolve([
-    { id: "preview-1", text: "真正好的 AI 体验，往往是让用户少想一步，而不是多看一个聊天框。", angle: "observation" },
-    { id: "preview-2", text: "这里的关键可能不是 AI 有多显眼，而是那一步摩擦原本有多烦。", angle: "implication" },
-    { id: "preview-3", text: `你会用什么指标判断这一步真的被“消失”了？`, angle: settings.style },
+    { id: "preview-1", text: "The best AI experience may be the one that removes a decision instead of adding another interface.", angle: "observation" },
+    { id: "preview-2", text: "The real product advantage here is not how visible the AI feels, but how completely the friction disappears.", angle: "implication" },
+    { id: "preview-3", text: "What signal would tell you that this annoying step has genuinely disappeared for users?", angle: settings.style },
   ] satisfies ReplyCandidate[]);
   return sendRuntimeMessage<ReplyCandidate[]>({ type: "GENERATE_REPLIES", post, settings });
 }
