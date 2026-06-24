@@ -32,7 +32,7 @@ async function handleMessage(request: RuntimeRequest, sender: chrome.runtime.Mes
     case "POST_SELECTED":
       await Promise.all([
         saveSelectedPost(request.post),
-        sender.tab?.id && request.panelMode !== "floating" ? chrome.sidePanel.open({ tabId: sender.tab.id }) : Promise.resolve(),
+        sender.tab?.id && request.panelMode !== "floating" && !request.auto ? chrome.sidePanel.open({ tabId: sender.tab.id }) : Promise.resolve(),
       ]);
       return { ok: true, data: request.post };
 

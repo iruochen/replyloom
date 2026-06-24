@@ -59,28 +59,76 @@ export async function insertDraftIntoComposer(article: HTMLElement | null, text:
   const editor = findBestReplyEditor(article);
   if (!editor) return false;
 
+  // Replace whatever is in the editor with the draft, deciding success by
+  // inspecting the editor's text afterwards rather than trusting a command's
+  // return value. X's DraftJS editor applies the edit to its own model and then
+  // cancels execCommand's input event, so execCommand reports `false` even
+  // though the text landed. The old code treated that `false` as failure and
+  // ran a fallback that injected a second, untracked text node: the draft then
+  // appeared twice, and the trailing copy (absent from DraftJS's model) could
+  // not be deleted, even though posting used the single modelled copy. We never
+  // hand-insert DOM nodes now — if no strategy lands, we simply report failure.
+  if (insertViaCommand(editor, text)) return collapseToEnd(editor);
+  if (insertViaPaste(editor, text)) return collapseToEnd(editor);
+  if (insertViaBeforeInput(editor, text)) return collapseToEnd(editor);
+  return false;
+}
+
+// True once the editor's text matches the draft. Whitespace is collapsed away
+// because DraftJS renders each line as its own block, so multi-line drafts come
+// back without the original newlines between blocks.
+function editorHasText(editor: HTMLElement, text: string): boolean {
+  const compact = (value: string) => value.replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, "");
+  const target = compact(text);
+  return target.length > 0 && compact(editor.textContent ?? "") === target;
+}
+
+function selectAllContent(editor: HTMLElement) {
   editor.focus();
   const selection = window.getSelection();
-  selection?.selectAllChildren(editor);
-  const canExec = typeof document.execCommand === "function";
-  if (editor.textContent && canExec) document.execCommand("delete", false);
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
 
-  const inserted = canExec && document.execCommand("insertText", false, text);
-  if (!inserted && selection?.rangeCount) {
-    const beforeInput = new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertText", data: text });
-    if (!editor.dispatchEvent(beforeInput)) return false;
-    const range = selection.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(text));
-    editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
+function insertViaCommand(editor: HTMLElement, text: string): boolean {
+  if (typeof document.execCommand !== "function") return false;
+  selectAllContent(editor);
+  document.execCommand("insertText", false, text);
+  return editorHasText(editor, text);
+}
+
+function insertViaPaste(editor: HTMLElement, text: string): boolean {
+  try {
+    if (typeof DataTransfer !== "function" || typeof ClipboardEvent !== "function") return false;
+    selectAllContent(editor);
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    editor.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+    return editorHasText(editor, text);
+  } catch {
+    return false;
   }
+}
+
+function insertViaBeforeInput(editor: HTMLElement, text: string): boolean {
+  selectAllContent(editor);
+  editor.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, composed: true, inputType: "insertText", data: text }));
+  editor.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
+  return editorHasText(editor, text);
+}
+
+// Collapse the caret to the end so the user can keep typing.
+function collapseToEnd(editor: HTMLElement): boolean {
+  const selection = window.getSelection();
   const end = document.createRange();
   end.selectNodeContents(editor);
   end.collapse(false);
   selection?.removeAllRanges();
   selection?.addRange(end);
   editor.focus();
-  return editor.textContent?.trim() === text.trim() || Boolean(inserted);
+  return true;
 }
 
 function findReplyEditors() {
