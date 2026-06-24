@@ -3,7 +3,10 @@ import { naturalizeCandidateText } from "../shared/naturalize";
 import { buildReplyPrompt } from "../shared/prompts";
 import { PROVIDER_DEFAULTS, type ConnectionResult, type GenerationSettings, type PostContext, type ProviderConfig, type ReplyCandidate } from "../shared/types";
 
-const REQUEST_TIMEOUT_MS = 30_000;
+const MODEL_LIST_TIMEOUT_MS = 15_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+const PRIMARY_GENERATION_TIMEOUT_MS = 18_000;
+const RETRY_GENERATION_TIMEOUT_MS = 12_000;
 
 export async function testProvider(config: ProviderConfig): Promise<ConnectionResult> {
   validateConfig(config);
@@ -17,7 +20,7 @@ export async function testProvider(config: ProviderConfig): Promise<ConnectionRe
 export async function listModels(config: ProviderConfig): Promise<string[]> {
   validateConfig(config, false);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), MODEL_LIST_TIMEOUT_MS);
   const endpoint = `${config.baseUrl.replace(/\/+$/, "")}/models`;
 
   try {
@@ -42,7 +45,7 @@ export async function listModels(config: ProviderConfig): Promise<string[]> {
     return [...new Set(models)].sort((a, b) => a.localeCompare(b));
   } catch (error) {
     if (error instanceof ProviderError) throw error;
-    if (error instanceof DOMException && error.name === "AbortError") throw new ProviderError("TIMEOUT", "Loading models took longer than 30 seconds.");
+    if (error instanceof DOMException && error.name === "AbortError") throw new ProviderError("TIMEOUT", "Loading models took longer than 15 seconds.");
     throw await networkError(error, endpoint, "The model list request failed.");
   } finally {
     clearTimeout(timer);
@@ -53,25 +56,37 @@ export async function generateReplies(config: ProviderConfig, post: PostContext,
   validateConfig(config);
   const prompt = buildReplyPrompt(post, settings);
   const languageHint = inferReplyLanguage(post, settings);
-  const outputBudget = config.preset === "minimax"
-    ? (settings.length === "short" ? 2048 : 3072)
-    : (settings.length === "short" ? 500 : 800);
-  const content = await requestChat(config, [
-    { role: "system", content: prompt.system },
-    { role: "user", content: prompt.user },
-  ], outputBudget, true);
+  const outputBudget = primaryOutputBudget(config, settings);
+  const retryBudget = retryOutputBudget(settings);
+  let content = "";
+
   try {
+    content = await requestChat(config, [
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user },
+    ], outputBudget, { jsonMode: true, timeoutMs: PRIMARY_GENERATION_TIMEOUT_MS });
     return naturalizeCandidates(parseCandidates(content), languageHint);
-  } catch {
-    const repaired = await requestChat(config, [
-      { role: "system", content: "Convert the supplied draft replies into valid JSON only. Do not add commentary." },
-      { role: "user", content: `Return exactly this shape with three distinct items: {"candidates":[{"text":"...","angle":"..."},{"text":"...","angle":"..."},{"text":"...","angle":"..."}]}\n\nDraft response:\n${content}` },
-    ], config.preset === "minimax" ? 2048 : 600, true);
+  } catch (error) {
+    if (!(error instanceof ProviderError) || (error.code !== "TIMEOUT" && error.code !== "INVALID_RESPONSE")) {
+      throw error;
+    }
+  }
+
+  try {
+    const repaired = await requestChat(config, buildCompactRetryMessages(post, settings), retryBudget, {
+      jsonMode: false,
+      timeoutMs: RETRY_GENERATION_TIMEOUT_MS,
+    });
     try {
       return naturalizeCandidates(parseCandidates(repaired), languageHint);
     } catch {
       throw new ProviderError("INVALID_RESPONSE", `The model returned an incomplete or unsupported reply format (${repaired.length} characters). Retry once; if it persists, choose a non-reasoning model.`);
     }
+  } catch (error) {
+    if (error instanceof ProviderError && error.code === "TIMEOUT") {
+      throw new ProviderError("TIMEOUT", "The provider stayed slow after a fast retry. Try a shorter post, a faster model, or generate again.");
+    }
+    throw error;
   }
 }
 
@@ -93,9 +108,15 @@ interface ChatMessage {
   content: string;
 }
 
-async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxTokens: number, jsonMode = false) {
+interface RequestChatOptions {
+  jsonMode?: boolean;
+  timeoutMs?: number;
+}
+
+async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxTokens: number, options: RequestChatOptions = {}) {
+  const { jsonMode = false, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = options;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const endpoint = `${config.baseUrl.replace(/\/+$/, "")}/chat/completions`;
 
   try {
@@ -141,11 +162,50 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
     return text;
   } catch (error) {
     if (error instanceof ProviderError) throw error;
-    if (error instanceof DOMException && error.name === "AbortError") throw new ProviderError("TIMEOUT", "The provider took longer than 30 seconds. Try again.");
+    if (error instanceof DOMException && error.name === "AbortError") throw new ProviderError("TIMEOUT", `The provider took longer than ${Math.round(timeoutMs / 1000)} seconds. Try again.`);
     throw await networkError(error, endpoint, "The provider request failed.");
   } finally {
     clearTimeout(timer);
   }
+}
+
+function primaryOutputBudget(config: ProviderConfig, settings: GenerationSettings) {
+  if (config.preset === "minimax") return settings.length === "short" ? 768 : 1024;
+  return settings.length === "short" ? 320 : 520;
+}
+
+function retryOutputBudget(settings: GenerationSettings) {
+  return settings.length === "short" ? 220 : 320;
+}
+
+function buildCompactRetryMessages(post: PostContext, settings: GenerationSettings): ChatMessage[] {
+  const prefersChinese = settings.language === "zh" || (settings.language === "auto" && (post.language?.startsWith("zh") || /[\u3400-\u9fff]/.test(post.text)));
+  const languageLine = prefersChinese ? "Use natural Chinese." : "Use natural English.";
+  const lengthLine = settings.length === "short"
+    ? (prefersChinese ? "Keep each reply under 45 Chinese characters." : "Keep each reply under 110 characters.")
+    : (prefersChinese ? "Keep each reply under 90 Chinese characters." : "Keep each reply under 180 characters.");
+
+  return [
+    {
+      role: "system",
+      content: `Write exactly three distinct X replies.
+- No intro, no commentary, no JSON.
+- Output exactly three lines.
+- Each line must be a complete reply draft.
+- Sound human, specific, and non-generic.`,
+    },
+    {
+      role: "user",
+      content: `${languageLine}
+${lengthLine}
+Style: ${settings.style}
+Voice: ${settings.voiceProfile.trim() || (prefersChinese ? "自然、像真人在 X 上说话。" : "Natural and conversational.")}
+Additional instruction: ${settings.customInstruction.trim() || "None."}
+
+Post:
+${post.text}`,
+    },
+  ];
 }
 
 async function assertHostPermission(endpoint: string) {

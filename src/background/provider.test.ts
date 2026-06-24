@@ -44,8 +44,25 @@ describe("provider adapter", () => {
     await generateReplies({ ...config, preset: "minimax", baseUrl: "https://api.minimaxi.com/v1" }, post, DEFAULT_GENERATION_SETTINGS);
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(String(request.body));
-    expect(body.max_tokens).toBe(2048);
+    expect(body.max_tokens).toBe(768);
     expect(body.response_format).toEqual({ type: "json_object" });
+  });
+
+  it("retries with a compact plain-text request after a timeout", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new DOMException("Timed out", "AbortError"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: "1. 这个开头挺抓人，后面系列化会更容易涨粉。\n2. 这篇最有价值的是把 IP 设计这件事讲得很落地。\n3. 如果你后面写视频生成那一段，我会想继续看。" } }],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateReplies(config, { ...post, text: "刚写了一篇关于怎么用 ChatGPT 做个人 IP 的长帖。", language: "zh" }, { ...DEFAULT_GENERATION_SETTINGS, language: "zh" });
+    expect(result).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryRequest = fetchMock.mock.calls[1][1] as RequestInit;
+    const retryBody = JSON.parse(String(retryRequest.body));
+    expect(retryBody.response_format).toBeUndefined();
+    expect(retryBody.max_tokens).toBe(220);
   });
 
   it("lightly naturalizes Chinese candidates without a second model call", async () => {
