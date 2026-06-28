@@ -12,6 +12,12 @@ const config: ProviderConfig = {
 
 const runLiveMiniMax = process.env.RUN_LIVE_MINIMAX_TESTS === "1" && Boolean(process.env.MINIMAX_API_KEY);
 const liveIt = runLiveMiniMax ? it : it.skip;
+const liveTweetFixture: PostContext = {
+  url: "https://x.com/example/status/live-minimax-check",
+  text: "刚开始认真做 X，发现真正难的不是日更，而是每条内容都得有一点自己的判断。",
+  language: "zh",
+  extractedAt: 1,
+};
 
 const post: PostContext = {
   url: "https://x.com/example/status/1",
@@ -127,7 +133,7 @@ describe("provider adapter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(Object.keys(PROVIDER_DEFAULTS).length);
   });
 
-  liveIt("can generate three Chinese replies from the live MiniMax high-speed API", async () => {
+  liveIt("generates three usable Chinese replies for the fixed live tweet fixture", async () => {
     const liveConfig: ProviderConfig = {
       preset: "minimax",
       baseUrl: "https://api.minimaxi.com/v1",
@@ -136,12 +142,7 @@ describe("provider adapter", () => {
       rememberKey: false,
     };
 
-    const result = await generateReplies(liveConfig, {
-      url: "https://x.com/example/status/live-minimax-check",
-      text: "刚开始认真做 X，发现真正难的不是日更，而是每条内容都得有一点自己的判断。",
-      language: "zh",
-      extractedAt: Date.now(),
-    }, {
+    const result = await generateReplies(liveConfig, liveTweetFixture, {
       ...DEFAULT_GENERATION_SETTINGS,
       language: "zh",
       style: "insightful",
@@ -149,5 +150,8 @@ describe("provider adapter", () => {
 
     expect(result).toHaveLength(3);
     expect(result.every((candidate) => candidate.text.trim().length > 0)).toBe(true);
+    expect(result.every((candidate) => /[\u3400-\u9fff]/.test(candidate.text))).toBe(true);
+    expect(result.every((candidate) => !/[{}\[\]`]/.test(candidate.text))).toBe(true);
+    expect(result.every((candidate) => !/<think>|<\/think>/i.test(candidate.text))).toBe(true);
   }, 30_000);
 });
