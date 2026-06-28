@@ -65,10 +65,17 @@ export async function saveProviderConfig(config: ProviderConfig) {
 }
 
 function normalizeProviderConfig(config: ProviderConfig): ProviderConfig {
+  let normalized = config;
   if (config.preset === "minimax" && /^https:\/\/api\.minimax\.com\/v1\/?$/i.test(config.baseUrl.trim())) {
-    return { ...config, baseUrl: "https://api.minimaxi.com/v1" };
+    normalized = { ...normalized, baseUrl: "https://api.minimaxi.com/v1" };
   }
-  return config;
+  if (normalized.preset === "minimax") {
+    const model = normalized.model.trim();
+    if (/^minimax-m?2\.7(?:[-\s]?high[-\s]?speed)$/i.test(model)) {
+      normalized = { ...normalized, model: "MiniMax-M2.7-highspeed" };
+    }
+  }
+  return normalized;
 }
 
 function isProviderPreset(value: unknown): value is ProviderPreset {

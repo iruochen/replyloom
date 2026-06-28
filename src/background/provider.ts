@@ -118,6 +118,7 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const endpoint = `${config.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const isMiniMax = config.preset === "minimax";
 
   try {
     await assertHostPermission(endpoint);
@@ -126,7 +127,8 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
       messages,
       temperature: jsonMode ? 0.7 : 0,
       max_tokens: maxTokens,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      ...(jsonMode && !isMiniMax ? { response_format: { type: "json_object" } } : {}),
+      ...(isMiniMax ? { reasoning_split: true } : {}),
     };
     const send = () => fetch(endpoint, {
       method: "POST",
@@ -162,7 +164,7 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
     return text;
   } catch (error) {
     if (error instanceof ProviderError) throw error;
-    if (error instanceof DOMException && error.name === "AbortError") throw new ProviderError("TIMEOUT", `The provider took longer than ${Math.round(timeoutMs / 1000)} seconds. Try again.`);
+    if (isAbortError(error, controller.signal)) throw new ProviderError("TIMEOUT", `The provider took longer than ${Math.round(timeoutMs / 1000)} seconds. Try again.`);
     throw await networkError(error, endpoint, "The provider request failed.");
   } finally {
     clearTimeout(timer);
@@ -176,6 +178,13 @@ function primaryOutputBudget(config: ProviderConfig, settings: GenerationSetting
 
 function retryOutputBudget(settings: GenerationSettings) {
   return settings.length === "short" ? 220 : 320;
+}
+
+function isAbortError(error: unknown, signal?: AbortSignal) {
+  if (signal?.aborted) return true;
+  if (error instanceof DOMException && error.name === "AbortError") return true;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /aborted|aborterror/i.test(message);
 }
 
 function buildCompactRetryMessages(post: PostContext, settings: GenerationSettings): ChatMessage[] {

@@ -36,16 +36,8 @@ function normalizePayload(payload: unknown): { candidates: unknown[] } | null {
   try {
     return candidateContainer(JSON.parse(withoutFence));
   } catch {
-    const start = withoutFence.indexOf("{");
-    const end = withoutFence.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        const extracted = candidateContainer(JSON.parse(withoutFence.slice(start, end + 1)));
-        if (extracted) return extracted;
-      } catch {
-        // Fall through to the plain-text list parser.
-      }
-    }
+    const extracted = extractEmbeddedJson(withoutFence);
+    if (extracted) return extracted;
     const list = plainTextCandidates(withoutFence);
     return list.length >= 3 ? { candidates: list } : null;
   }
@@ -71,12 +63,50 @@ function candidateContainer(value: unknown): { candidates: unknown[] } | null {
       }
     }
   }
+  for (const key of ["output", "content", "text", "message", "result", "response"]) {
+    const nested = record[key];
+    if (typeof nested === "string") {
+      const extracted = extractStringCandidates(nested);
+      if (extracted) return extracted;
+    }
+  }
   const replyEntries = Object.entries(record).filter(([key, item]) => /^(?:reply|candidate|回复|候选)[_\s-]*\d+$/i.test(key) && (typeof item === "string" || typeof item === "object"));
   if (replyEntries.length >= 3) return { candidates: replyEntries.map(([, item]) => item) };
   for (const nested of Object.values(record)) {
-    if (typeof nested !== "object" || nested === null) continue;
-    const found = candidateContainer(nested);
+    const found = typeof nested === "string"
+      ? extractStringCandidates(nested)
+      : typeof nested === "object" && nested !== null
+        ? candidateContainer(nested)
+        : null;
     if (found) return found;
+  }
+  return null;
+}
+
+function extractStringCandidates(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return candidateContainer(JSON.parse(trimmed));
+  } catch {
+    const extracted = extractEmbeddedJson(trimmed);
+    if (extracted) return extracted;
+    const list = plainTextCandidates(trimmed);
+    return list.length >= 3 ? { candidates: list } : null;
+  }
+}
+
+function extractEmbeddedJson(value: string) {
+  for (const [startToken, endToken] of [["{", "}"], ["[", "]"]] as const) {
+    const start = value.indexOf(startToken);
+    const end = value.lastIndexOf(endToken);
+    if (start < 0 || end <= start) continue;
+    try {
+      const extracted = candidateContainer(JSON.parse(value.slice(start, end + 1)));
+      if (extracted) return extracted;
+    } catch {
+      // Continue trying other delimiters.
+    }
   }
   return null;
 }

@@ -55,4 +55,17 @@ describe("parseCandidates", () => {
     expect(parseCandidates({ output: { reply_1: "第一条回复", reply_2: "第二条回复", reply_3: "第三条回复" } })).toHaveLength(3);
     expect(parseCandidates('候选回复：“第一条回复”“第二条回复”“第三条回复”')).toHaveLength(3);
   });
+
+  it("extracts candidates from top-level output strings and embedded arrays", () => {
+    expect(parseCandidates({
+      output: '{"candidates":[{"text":"第一条回复"},{"text":"第二条回复"},{"text":"第三条回复"}]}',
+    })).toHaveLength(3);
+
+    expect(parseCandidates(`下面是 3 条中文回复：
+[
+  {"text":"第一条回复"},
+  {"text":"第二条回复"},
+  {"text":"第三条回复"}
+]`)).toHaveLength(3);
+  });
 });

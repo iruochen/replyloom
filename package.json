@@ -1,12 +1,13 @@
 {
   "name": "reply-loom",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc --noEmit && vite build",
     "package": "npm run build && node scripts/package-extension.mjs",
+    "publish:chrome-store": "npm run package && node scripts/publish-chrome-web-store.mjs",
     "video:studio": "remotion studio video/src/index.ts --public-dir=video/public",
     "video:still": "remotion still video/src/index.ts ReplyLoomPromo store-assets/video/thumbnail-1920x1080.png --frame=210 --public-dir=video/public",
     "store:top-promo": "remotion still video/src/index.ts ReplyLoomTopPromo store-assets/promos/marquee-1400x560.jpg --image-format=jpeg --jpeg-quality=95 --public-dir=video/public",

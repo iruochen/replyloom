@@ -46,4 +46,15 @@ describe("provider profile storage", () => {
     await saveProviderConfig({ preset: "minimax", baseUrl: "https://api.minimax.com/v1", apiKey: "", model: "MiniMax-M2.7", rememberKey: false });
     expect((await getProviderConfig()).baseUrl).toBe("https://api.minimaxi.com/v1");
   });
+
+  it("normalizes the common MiniMax high-speed model alias", async () => {
+    await saveProviderConfig({
+      preset: "minimax",
+      baseUrl: "https://api.minimaxi.com/v1",
+      apiKey: "",
+      model: "MiniMax-M2.7-High-Speed",
+      rememberKey: false,
+    });
+    expect((await getProviderConfig()).model).toBe("MiniMax-M2.7-highspeed");
+  });
 });

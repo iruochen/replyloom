@@ -10,6 +10,9 @@ const config: ProviderConfig = {
   rememberKey: false,
 };
 
+const runLiveMiniMax = process.env.RUN_LIVE_MINIMAX_TESTS === "1" && Boolean(process.env.MINIMAX_API_KEY);
+const liveIt = runLiveMiniMax ? it : it.skip;
+
 const post: PostContext = {
   url: "https://x.com/example/status/1",
   text: "Small models make local-first products much more interesting.",
@@ -36,7 +39,7 @@ describe("provider adapter", () => {
     expect((request.headers as Record<string, string>).Authorization).toBe("Bearer secret-test-key");
   });
 
-  it("requests JSON mode and a reasoning-safe budget for MiniMax", async () => {
+  it("uses a reasoning-safe budget and MiniMax-specific response settings", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ candidates: ["回复一", "回复二", "回复三"] }) } }],
     }), { status: 200 }));
@@ -45,7 +48,8 @@ describe("provider adapter", () => {
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(String(request.body));
     expect(body.max_tokens).toBe(768);
-    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.reasoning_split).toBe(true);
+    expect(body.response_format).toBeUndefined();
   });
 
   it("retries with a compact plain-text request after a timeout", async () => {
@@ -122,4 +126,28 @@ describe("provider adapter", () => {
     }
     expect(fetchMock).toHaveBeenCalledTimes(Object.keys(PROVIDER_DEFAULTS).length);
   });
+
+  liveIt("can generate three Chinese replies from the live MiniMax high-speed API", async () => {
+    const liveConfig: ProviderConfig = {
+      preset: "minimax",
+      baseUrl: "https://api.minimaxi.com/v1",
+      apiKey: process.env.MINIMAX_API_KEY!,
+      model: process.env.MINIMAX_MODEL || "MiniMax-M2.7-highspeed",
+      rememberKey: false,
+    };
+
+    const result = await generateReplies(liveConfig, {
+      url: "https://x.com/example/status/live-minimax-check",
+      text: "刚开始认真做 X，发现真正难的不是日更，而是每条内容都得有一点自己的判断。",
+      language: "zh",
+      extractedAt: Date.now(),
+    }, {
+      ...DEFAULT_GENERATION_SETTINGS,
+      language: "zh",
+      style: "insightful",
+    });
+
+    expect(result).toHaveLength(3);
+    expect(result.every((candidate) => candidate.text.trim().length > 0)).toBe(true);
+  }, 30_000);
 });
