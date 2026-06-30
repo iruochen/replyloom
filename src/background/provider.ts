@@ -11,9 +11,9 @@ const RETRY_GENERATION_TIMEOUT_MS = 12_000;
 export async function testProvider(config: ProviderConfig): Promise<ConnectionResult> {
   validateConfig(config);
   const result = await requestChat(config, [
-    { role: "system", content: "Return only the word OK." },
+    { role: "system", content: "Return only the word OK. Do not include reasoning or extra text." },
     { role: "user", content: "Connection test" },
-  ], 4);
+  ], 32, { allowReasoningOnly: true });
   return { ok: /ok/i.test(result) || result.length > 0, message: `Connected to ${config.model}.` };
 }
 
@@ -111,10 +111,11 @@ interface ChatMessage {
 interface RequestChatOptions {
   jsonMode?: boolean;
   timeoutMs?: number;
+  allowReasoningOnly?: boolean;
 }
 
 async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxTokens: number, options: RequestChatOptions = {}) {
-  const { jsonMode = false, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = options;
+  const { jsonMode = false, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, allowReasoningOnly = false } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const endpoint = `${config.baseUrl.replace(/\/+$/, "")}/chat/completions`;
@@ -139,7 +140,7 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
     });
     let response = await send();
     let payload = await response.json().catch(() => null) as {
-      choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
+      choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }>; reasoning_content?: string } }>;
       error?: { message?: string };
     } | null;
 
@@ -155,11 +156,15 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
     }
 
     const content = payload?.choices?.[0]?.message?.content;
+    const reasoningContent = payload?.choices?.[0]?.message?.reasoning_content ?? "";
     const text = typeof content === "string"
       ? content
       : Array.isArray(content)
         ? content.map((part) => part.text ?? "").join("")
         : "";
+    if (!text.trim() && allowReasoningOnly && reasoningContent.trim()) {
+      return reasoningContent;
+    }
     if (!text.trim()) throw new ProviderError("INVALID_RESPONSE", "The provider returned an empty response.");
     return text;
   } catch (error) {

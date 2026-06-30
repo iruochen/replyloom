@@ -20,6 +20,7 @@
     "video:render": "remotion render video/src/index.ts ReplyLoomPromo store-assets/video/demo-1920x1080.mp4 --codec=h264 --crf=18 --public-dir=video/public",
     "test": "vitest run",
     "test:live:minimax": "RUN_LIVE_MINIMAX_TESTS=1 vitest run --testNamePattern=\"fixed live tweet fixture\"",
+    "test:live:provider": "RUN_LIVE_PROVIDER_TESTS=1 vitest run --testNamePattern=\"real provider\"",
     "test:watch": "vitest",
     "check": "npm run test && npm run build",
     "typecheck": "tsc --noEmit"

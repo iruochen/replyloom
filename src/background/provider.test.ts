@@ -11,7 +11,9 @@ const config: ProviderConfig = {
 };
 
 const runLiveMiniMax = process.env.RUN_LIVE_MINIMAX_TESTS === "1" && Boolean(process.env.MINIMAX_API_KEY);
+const runLiveProvider = process.env.RUN_LIVE_PROVIDER_TESTS === "1" && Boolean(process.env.LIVE_PROVIDER_API_KEY) && Boolean(process.env.LIVE_PROVIDER_PRESET);
 const liveIt = runLiveMiniMax ? it : it.skip;
+const providerLiveIt = runLiveProvider ? it : it.skip;
 const liveTweetFixture: PostContext = {
   url: "https://x.com/example/status/live-minimax-check",
   text: "刚开始认真做 X，发现真正难的不是日更，而是每条内容都得有一点自己的判断。",
@@ -141,6 +143,36 @@ describe("provider adapter", () => {
       model: process.env.MINIMAX_MODEL || "MiniMax-M2.7-highspeed",
       rememberKey: false,
     };
+
+    const result = await generateReplies(liveConfig, liveTweetFixture, {
+      ...DEFAULT_GENERATION_SETTINGS,
+      language: "zh",
+      style: "insightful",
+    });
+
+    expect(result).toHaveLength(3);
+    expect(result.every((candidate) => candidate.text.trim().length > 0)).toBe(true);
+    expect(result.every((candidate) => /[\u3400-\u9fff]/.test(candidate.text))).toBe(true);
+    expect(result.every((candidate) => !/[{}\[\]`]/.test(candidate.text))).toBe(true);
+    expect(result.every((candidate) => !/<think>|<\/think>/i.test(candidate.text))).toBe(true);
+  }, 30_000);
+
+  providerLiveIt("passes connection, model list, and generation on a real provider", async () => {
+    const preset = process.env.LIVE_PROVIDER_PRESET as ProviderConfig["preset"];
+    const defaults = PROVIDER_DEFAULTS[preset];
+    const liveConfig: ProviderConfig = {
+      preset,
+      baseUrl: process.env.LIVE_PROVIDER_BASE_URL || defaults.baseUrl,
+      apiKey: process.env.LIVE_PROVIDER_API_KEY!,
+      model: process.env.LIVE_PROVIDER_MODEL || defaults.model,
+      rememberKey: false,
+    };
+
+    await expect(testProvider(liveConfig)).resolves.toMatchObject({ ok: true });
+
+    const models = await listModels(liveConfig);
+    expect(models.length).toBeGreaterThan(0);
+    expect(models.every((model) => model.trim().length > 0)).toBe(true);
 
     const result = await generateReplies(liveConfig, liveTweetFixture, {
       ...DEFAULT_GENERATION_SETTINGS,
