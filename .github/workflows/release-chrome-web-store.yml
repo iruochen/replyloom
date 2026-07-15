@@ -26,11 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: chrome-web-store
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -68,7 +68,7 @@ jobs:
           git push origin HEAD:main --follow-tags
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ReplyLoom-${{ steps.version.outputs.version }}-chrome
           path: release/ReplyLoom-${{ steps.version.outputs.version }}-chrome.zip
