@@ -55,7 +55,7 @@ describe("provider adapter", () => {
     await generateReplies({ ...config, preset: "minimax", baseUrl: "https://api.minimaxi.com/v1" }, post, DEFAULT_GENERATION_SETTINGS);
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(String(request.body));
-    expect(body.max_tokens).toBe(768);
+    expect(body.max_tokens).toBe(960);
     expect(body.reasoning_split).toBe(true);
     expect(body.response_format).toBeUndefined();
   });
@@ -75,6 +75,22 @@ describe("provider adapter", () => {
     const retryBody = JSON.parse(String(retryRequest.body));
     expect(retryBody.response_format).toBeUndefined();
     expect(retryBody.max_tokens).toBe(220);
+  });
+
+  it("retries when the model truncates a JSON response", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: '{\n"candidates": [\n{"text": "不完整的第一条回复"' } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: "1. 第一条完整回复。\n2. 第二条完整回复。\n3. 第三条完整回复。" } }],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(generateReplies(config, post, DEFAULT_GENERATION_SETTINGS)).resolves.toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(retryBody.response_format).toBeUndefined();
   });
 
   it("lightly naturalizes Chinese candidates without a second model call", async () => {

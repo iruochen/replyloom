@@ -112,6 +112,11 @@ function extractEmbeddedJson(value: string) {
 }
 
 function plainTextCandidates(value: string) {
+  // A truncated JSON response is not a list of reply drafts. In particular,
+  // do not turn lines such as `{` and `"candidates": [` into cards: that
+  // masks an invalid response and prevents the provider retry from running.
+  if (/^\s*(?:\{|\[|```(?:json)?\b)/i.test(value)) return [];
+
   const quoted = [...value.matchAll(/["“]([^"”\n]{4,280})["”]/g)]
     .map((match) => match[1].trim())
     .filter((item) => !/^(?:candidates|text|angle|reply|replies)$/i.test(item));
@@ -121,8 +126,14 @@ function plainTextCandidates(value: string) {
     .replace(/\s*[；;]\s*/g, "\n");
   return expanded.split(/\n+/)
     .map((line) => line.trim().replace(/^(?:(?:\d+[.)、])|[-*•]|(?:回复|候选)[一二三123][:：])\s*/, ""))
-    .filter((line) => line.length > 0 && !/^(?:replies|candidates|候选|回复)[:：]?$/i.test(line))
+    .filter((line) => line.length > 0
+      && !/^(?:replies|candidates|候选|回复)[:：]?$/i.test(line)
+      && !isJsonFragment(line))
     .slice(0, 6);
+}
+
+function isJsonFragment(line: string) {
+  return /^(?:[{}\[\],]+|["']?(?:candidates|replies|results|data|text|angle)["']?\s*:\s*[\[{]?)$/i.test(line);
 }
 
 function normalizeCandidate(item: unknown, index: number): ReplyCandidate | null {

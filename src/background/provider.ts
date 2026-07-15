@@ -65,7 +65,13 @@ export async function generateReplies(config: ProviderConfig, post: PostContext,
       { role: "system", content: prompt.system },
       { role: "user", content: prompt.user },
     ], outputBudget, { jsonMode: true, timeoutMs: PRIMARY_GENERATION_TIMEOUT_MS });
-    return naturalizeCandidates(parseCandidates(content), languageHint);
+    try {
+      return naturalizeCandidates(parseCandidates(content), languageHint);
+    } catch {
+      // Treat malformed or truncated structured output like any other
+      // invalid provider response so the compact plain-text retry can run.
+      throw new ProviderError("INVALID_RESPONSE", "The provider returned an incomplete reply format.");
+    }
   } catch (error) {
     if (!(error instanceof ProviderError) || (error.code !== "TIMEOUT" && error.code !== "INVALID_RESPONSE")) {
       throw error;
@@ -177,8 +183,11 @@ async function requestChat(config: ProviderConfig, messages: ChatMessage[], maxT
 }
 
 function primaryOutputBudget(config: ProviderConfig, settings: GenerationSettings) {
-  if (config.preset === "minimax") return settings.length === "short" ? 768 : 1024;
-  return settings.length === "short" ? 320 : 520;
+  // Three Chinese drafts plus their JSON envelope can exceed 320 tokens.
+  // Leave enough room for a complete object so parsing does not start from a
+  // truncated response; the timeout still bounds the overall request.
+  if (config.preset === "minimax") return settings.length === "short" ? 960 : 1280;
+  return settings.length === "short" ? 520 : 760;
 }
 
 function retryOutputBudget(settings: GenerationSettings) {

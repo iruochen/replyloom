@@ -68,4 +68,10 @@ describe("parseCandidates", () => {
   {"text":"第三条回复"}
 ]`)).toHaveLength(3);
   });
+
+  it("rejects truncated JSON instead of rendering JSON fragments as replies", () => {
+    expect(() => parseCandidates(`{
+"candidates": [
+{"text": "第一条回复内容"`)).toThrow("did not contain a candidates array");
+  });
 });
