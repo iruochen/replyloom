@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ReplyLoom: AI Reply Assistant for X",
   "short_name": "ReplyLoom",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Generate thoughtful reply drafts for a selected X post and review before publishing.",
   "icons": {
     "16": "icons/icon-16.png",

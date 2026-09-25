@@ -47,7 +47,7 @@ describe("provider adapter", () => {
     expect((request.headers as Record<string, string>).Authorization).toBe("Bearer secret-test-key");
   });
 
-  it("uses a reasoning-safe budget and MiniMax-specific response settings", async () => {
+  it("uses a compact primary prompt and MiniMax-specific response settings", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ candidates: ["回复一", "回复二", "回复三"] }) } }],
     }), { status: 200 }));
@@ -55,9 +55,32 @@ describe("provider adapter", () => {
     await generateReplies({ ...config, preset: "minimax", baseUrl: "https://api.minimaxi.com/v1" }, post, DEFAULT_GENERATION_SETTINGS);
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(String(request.body));
-    expect(body.max_tokens).toBe(960);
+    expect(body.max_tokens).toBe(1600);
     expect(body.reasoning_split).toBe(true);
     expect(body.response_format).toBeUndefined();
+    expect(body.messages[0].content).toContain("Output exactly three lines");
+  });
+
+  it("disables DeepSeek thinking for short reply generation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ candidates: ["Reply one", "Reply two", "Reply three"] }) } }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateReplies({ ...config, preset: "deepseek", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" }, post, DEFAULT_GENERATION_SETTINGS);
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.thinking).toEqual({ type: "disabled" });
+  });
+
+  it("gives MiniMax enough retry tokens when its first response is incomplete", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: "1. Only one reply" } }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: "1. Reply one\n2. Reply two\n3. Reply three" } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(generateReplies({ ...config, preset: "minimax", baseUrl: "https://api.minimaxi.com/v1" }, post, DEFAULT_GENERATION_SETTINGS)).resolves.toHaveLength(3);
+    const retryBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(retryBody.max_tokens).toBe(2400);
   });
 
   it("retries with a compact plain-text request after a timeout", async () => {
@@ -74,7 +97,7 @@ describe("provider adapter", () => {
     const retryRequest = fetchMock.mock.calls[1][1] as RequestInit;
     const retryBody = JSON.parse(String(retryRequest.body));
     expect(retryBody.response_format).toBeUndefined();
-    expect(retryBody.max_tokens).toBe(220);
+    expect(retryBody.max_tokens).toBe(320);
   });
 
   it("retries when the model truncates a JSON response", async () => {
