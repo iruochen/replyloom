@@ -20,7 +20,6 @@ All screenshots are 1280×800, RGB, non-transparent PNG files.
 
 - `video/demo-1920x1080.mp4`
 - `video/thumbnail-1920x1080.png`
-- `video/youtube-copy.md`
 
 ## Preview tool
 

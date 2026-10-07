@@ -9,3 +9,9 @@ dist/
 .remotion/
 remotion-bundle/
 release/*.zip
+
+# Local collaboration notes and private planning material
+AGENTS.md
+private/
+internal/
+docs/internal/
