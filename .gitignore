@@ -8,3 +8,4 @@ dist/
 !.env.chrome-web-store.example
 .remotion/
 remotion-bundle/
+release/*.zip

@@ -1,5 +1,5 @@
 {
-  "name": "reply-loom",
+  "name": "replyloom",
   "version": "0.2.3",
   "private": true,
   "type": "module",
@@ -43,5 +43,10 @@
     "typescript": "latest",
     "vite": "latest",
     "vitest": "latest"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iruochen/replyloom.git"
   }
 }

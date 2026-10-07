@@ -18,7 +18,7 @@ let floatingFrame: HTMLIFrameElement | null = null;
 function installTriggers(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('article[data-testid="tweet"]').forEach((article) => {
     const existing = article.querySelector<HTMLElement>(`.${BUTTON_CLASS}`);
-    if (existing?.dataset.replyXInstance === INSTANCE_ID) return;
+    if (existing?.dataset.replyloomInstance === INSTANCE_ID) return;
     existing?.remove();
     const actions = article.querySelector<HTMLElement>('[role="group"]');
     if (!actions) return;
@@ -26,7 +26,7 @@ function installTriggers(root: ParentNode = document) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = BUTTON_CLASS;
-    button.dataset.replyXInstance = INSTANCE_ID;
+    button.dataset.replyloomInstance = INSTANCE_ID;
     button.textContent = "AI reply";
     button.setAttribute("aria-label", "Generate an AI-assisted reply draft");
     button.addEventListener("click", async (event) => {
